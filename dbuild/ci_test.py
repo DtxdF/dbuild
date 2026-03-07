@@ -19,7 +19,6 @@ _REQUIRED_TOOLS = [
     "podman",
     "buildah",
     "skopeo",
-    "jq",
     "trivy",
 ]
 
