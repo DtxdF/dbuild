@@ -26,7 +26,7 @@ _OCIJAIL_URL_TEMPLATE = (
 )
 
 _PKG_LIST = [
-    "podman", "jq", "skopeo", "buildah", "trivy",
+    "podman", "skopeo", "buildah", "trivy",
     "python3", "py311-pyyaml",
 ]
 
