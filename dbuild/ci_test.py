@@ -96,6 +96,7 @@ def _check_ocijail_annotation(annotation: str, base_image: str) -> bool:
         *podman._priv_prefix(),
         "podman", "run", "--rm",
         "--annotation", f"{annotation}=true",
+        "--entrypoint", "",
         base_image,
         "/bin/echo", "ok",
     ]
