@@ -37,6 +37,7 @@ class TestConfig:
     ready: str | None = None
     screenshot_wait: int | None = None
     screenshot_path: str | None = None
+    ssim_threshold: float | None = None
     https: bool = False
     compose: bool = False
     annotations: list[str] = field(default_factory=list)
@@ -353,6 +354,7 @@ def _parse_test_config(data: dict[str, Any], compose_data: dict[str, Any] | None
     ready = cit.get("ready")
     screenshot_wait = cit.get("screenshot_wait")
     screenshot_path = cit.get("screenshot")
+    ssim_threshold = cit.get("ssim_threshold")
     https = cit.get("https", False)
     compose = cit.get("compose", False)
     annotations = []
@@ -413,6 +415,7 @@ def _parse_test_config(data: dict[str, Any], compose_data: dict[str, Any] | None
         ready=ready,
         screenshot_wait=screenshot_wait,
         screenshot_path=screenshot_path,
+        ssim_threshold=ssim_threshold,
         https=https,
         compose=compose,
         annotations=annotations,
