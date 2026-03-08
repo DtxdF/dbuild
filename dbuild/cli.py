@@ -208,6 +208,17 @@ def _make_parser() -> argparse.ArgumentParser:
         help="generate Woodpecker CI pipeline (.woodpecker.yaml)",
     )
 
+    # -- lint --
+    sub.add_parser(
+        "lint",
+        help="lint image repo(s) for common issues",
+        description=(
+            "Check compose.yaml and .daemonless/config.yaml for correctness. "
+            "Lints the current repo if run from an image directory, "
+            "or all subdirectories if run from a workspace root."
+        ),
+    )
+
     # -- screenshot --
     screenshot_parser = sub.add_parser(
         "screenshot",
@@ -386,7 +397,7 @@ _DISPATCHERS: dict[str, callable] = {
 }
 
 # Commands that run without loading project config
-_NO_CONFIG_COMMANDS: set[str] = {"init", "ci-prepare", "ci-test-env"}
+_NO_CONFIG_COMMANDS: set[str] = {"init", "ci-prepare", "ci-test-env", "lint"}
 
 
 # ── Entry point ───────────────────────────────────────────────────────
@@ -427,6 +438,9 @@ def main(argv: list[str] | None = None) -> None:
             elif args.command == "ci-test-env":
                 from dbuild import ci_test
                 rc = ci_test.run(args)
+            elif args.command == "lint":
+                from dbuild import lint
+                rc = lint.run(args)
             else:
                 rc = 1
         except KeyboardInterrupt:

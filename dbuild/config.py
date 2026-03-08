@@ -24,6 +24,23 @@ _IGNORE_SUFFIXES: set[str] = {".j2", ".bak", ".orig", ".swp", ".tmp"}
 # Global config path — shared variant templates for all repos.
 _GLOBAL_CONFIG_PATH = Path("/usr/local/etc/daemonless.yaml")
 
+# Valid x-daemonless categories — single source of truth across dbuild.
+VALID_CATEGORIES: list[str] = [
+    "Base",
+    "Databases",
+    "Development",
+    "Downloaders",
+    "Infrastructure",
+    "Media Management",
+    "Media Servers",
+    "Monitoring",
+    "Network",
+    "Photos & Media",
+    "Productivity",
+    "Security",
+    "Utilities",
+]
+
 # ── Dataclasses ──────────────────────────────────────────────────────
 
 @dataclass
