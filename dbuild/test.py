@@ -341,6 +341,7 @@ def _test_screenshot(
     screenshot_wait: int = 0,
     baseline: Path | None = None,
     save_to: str | None = None,
+    ssim_threshold: float | None = None,
 ) -> tuple[bool, str]:
     """Capture and verify a screenshot.
 
@@ -378,7 +379,7 @@ def _test_screenshot(
         # Baseline comparison
         if baseline and baseline.is_file():
             log.info(f"Comparing to baseline: {baseline}")
-            passed, msg = verify(screenshot_file, str(baseline))
+            passed, msg = verify(screenshot_file, str(baseline), threshold=ssim_threshold)
             if not passed:
                 if save_to:
                     _copy_file(screenshot_file, save_to)
@@ -603,6 +604,7 @@ def _test_variant(
             screenshot_wait=test.screenshot_wait or 0,
             baseline=baseline,
             save_to=screenshot_save,
+            ssim_threshold=test.ssim_threshold,
         )
         if not passed:
             results["screenshot"] = "fail"

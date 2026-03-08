@@ -34,7 +34,7 @@ def has_ui_elements(img: np.ndarray) -> bool:
 
 
 def compare_images(
-    img1: np.ndarray, img2: np.ndarray
+    img1: np.ndarray, img2: np.ndarray, threshold: float | None = None
 ) -> tuple[float, bool]:
     """Compare two images using SSIM.  Returns ``(score, passed)``."""
     gray1 = color.rgb2gray(img1) if img1.ndim == 3 else img1
@@ -44,12 +44,13 @@ def compare_images(
     if gray1.shape != gray2.shape:
         gray2 = transform.resize(gray2, gray1.shape, anti_aliasing=True)
 
+    used_threshold = threshold if threshold is not None else SSIM_THRESHOLD
     score = ssim(gray1, gray2, data_range=1.0)
-    return score, score >= SSIM_THRESHOLD
+    return score, score >= used_threshold
 
 
 def verify(
-    image_path: str, baseline_path: str | None = None
+    image_path: str, baseline_path: str | None = None, threshold: float | None = None
 ) -> tuple[bool, str]:
     """Verify a screenshot is valid.
 
@@ -78,9 +79,10 @@ def verify(
         except Exception as e:
             return False, f"Cannot read baseline: {e}"
 
-        score, passed = compare_images(img, baseline)
+        score, passed = compare_images(img, baseline, threshold=threshold)
+        used_threshold = threshold if threshold is not None else SSIM_THRESHOLD
         if not passed:
-            return False, f"SSIM {score:.3f} below threshold {SSIM_THRESHOLD}"
+            return False, f"SSIM {score:.3f} below threshold {used_threshold}"
         return True, f"Screenshot matches baseline (SSIM: {score:.3f})"
 
     return True, "Screenshot looks valid"

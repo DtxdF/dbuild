@@ -14,7 +14,6 @@ from dbuild import ci as ci_mod
 from dbuild import log
 
 # ── Required tools ───────────────────────────────────────────────────
-
 _REQUIRED_TOOLS = [
     "podman",
     "buildah",
