@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from dbuild.init import _TEMPLATES_DIR, run
+from dbuild.init import run
 
 
 class TestRun(unittest.TestCase):
