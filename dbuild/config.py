@@ -134,6 +134,7 @@ def _detect_registry() -> str:
         return env
     org = _git_remote_org()
     if org:
+        org = org.lower()
         return f"ghcr.io/{org}"
     return "localhost"
 
@@ -169,7 +170,7 @@ def _git_remote_org() -> str | None:
 
 def _detect_image_name(base: Path) -> str:
     """Derive image name from directory name."""
-    return base.name
+    return base.name.lower()
 
 
 def _auto_detect_variants(
