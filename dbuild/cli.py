@@ -420,6 +420,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # Enable verbose logging
     if args.verbose:
+        log.set_verbose(True)
         log.info("verbose mode enabled")
 
     # If no subcommand was given, print help and exit.
