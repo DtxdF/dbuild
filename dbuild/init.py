@@ -17,75 +17,226 @@ from dbuild import log
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
+# FreeBSD port category → daemonless category.
+# FreeBSD categories don't align with daemonless's vocabulary, so we map
+# best-effort.  Unmapped categories fall back to None (triggers a warning).
+_CATEGORY_MAP: dict[str, str] = {
+    "databases":    "Databases",
+    "devel":        "Development",
+    "lang":         "Development",
+    "editors":      "Development",
+    "dns":          "Network",
+    "ftp":          "Downloaders",
+    "net":          "Network",
+    "net-im":       "Network",
+    "net-mgmt":     "Monitoring",
+    "net-p2p":      "Downloaders",
+    "net-vpn":      "Network",
+    "security":     "Security",
+    "sysutils":     "Utilities",
+    "multimedia":   "Media Servers",
+    "graphics":     "Photos & Media",
+    "audio":        "Media Servers",
+    "www":          "Network",
+    "finance":      "Productivity",
+    "misc":         "Utilities",
+    "ports-mgmt":   "Utilities",
+    "shells":       "Utilities",
+    "textproc":     "Utilities",
+    "archivers":    "Utilities",
+}
+
+
+# FreeBSD port LICENSE identifiers mapped to SPDX.
+# The ports tree (bsd.licenses.db.mk) does not expose SPDX identifiers — it
+# only defines human-readable _LICENSE_NAME_* values.  This map is maintained
+# manually, but FreeBSD port license identifiers are stable and rarely change.
+_LICENSE_SPDX: dict[str, str] = {
+    # Copyleft — AGPL
+    "AGPL3":        "AGPL-3.0-only",
+    "AGPL3+":       "AGPL-3.0-or-later",
+    # Artistic
+    "ARTISTIC":     "Artistic-1.0",
+    "ARTISTIC2":    "Artistic-2.0",
+    # BSD
+    "BSD2CLAUSE":   "BSD-2-Clause",
+    "BSD3CLAUSE":   "BSD-3-Clause",
+    "BSD4CLAUSE":   "BSD-4-Clause",
+    # Creative Commons
+    "CC-BY-4.0":    "CC-BY-4.0",
+    "CC-BY-SA-4.0": "CC-BY-SA-4.0",
+    "CC0-1.0":      "CC0-1.0",
+    # CDDL
+    "CDDL":         "CDDL-1.0",
+    # EUPL
+    "EUPL11":       "EUPL-1.1",
+    "EUPL12":       "EUPL-1.2",
+    # Copyleft — GPL
+    "GPLv1":        "GPL-1.0-only",
+    "GPLv1+":       "GPL-1.0-or-later",
+    "GPLv2":        "GPL-2.0-only",
+    "GPLv2+":       "GPL-2.0-or-later",
+    "GPLv3":        "GPL-3.0-only",
+    "GPLv3+":       "GPL-3.0-or-later",
+    # ISC
+    "ISC":          "ISC",
+    # Copyleft — LGPL
+    "LGPL20":       "LGPL-2.0-only",
+    "LGPL20+":      "LGPL-2.0-or-later",
+    "LGPL21":       "LGPL-2.1-only",
+    "LGPL21+":      "LGPL-2.1-or-later",
+    "LGPL3":        "LGPL-3.0-only",
+    "LGPL3+":       "LGPL-3.0-or-later",
+    # MIT
+    "MIT":          "MIT",
+    # Mozilla
+    "MPL20":        "MPL-2.0",
+    # Apache
+    "APACHE20":     "Apache-2.0",
+}
+
+
+def _to_spdx(raw: str) -> str:
+    """Map a FreeBSD port LICENSE token to its SPDX identifier."""
+    return _LICENSE_SPDX.get(raw, raw or "UNKNOWN")
+
+
+def _pkg_run_deps(pkgname: str) -> list[str]:
+    """Return runtime dependency package names via pkg rquery.
+
+    Returns an empty list if the package is not found in the repo or pkg
+    is unavailable — the caller should warn and fall back gracefully.
+    """
+    try:
+        out = subprocess.check_output(
+            ["pkg", "rquery", "%dn", pkgname],
+            text=True, stderr=subprocess.DEVNULL,
+        )
+        return [line.strip() for line in out.splitlines() if line.strip()]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+
+
+def _make_query(port_path: Path, variables: list[str]) -> dict[str, str]:
+    """Query port variables via make -V, one call per variable for reliability."""
+    result: dict[str, str] = {}
+    for var in variables:
+        try:
+            out = subprocess.check_output(
+                ["make", "-C", str(port_path), "-V", var],
+                text=True, stderr=subprocess.DEVNULL,
+            )
+            result[var] = out.strip()
+        except subprocess.CalledProcessError:
+            result[var] = ""
+    return result
+
+
+def _first_paragraph(text: str) -> str:
+    """Return the first non-empty paragraph of text."""
+    lines = text.splitlines()
+    paragraph: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("WWW:"):
+            break
+        if not stripped and paragraph:
+            break
+        if stripped:
+            paragraph.append(stripped)
+    return " ".join(paragraph)
+
+
 def _fetch_port_metadata(port_path: str) -> dict[str, str] | None:
     """Fetch metadata from a FreeBSD port in /usr/ports."""
+    if "/" not in port_path or port_path.count("/") != 1:
+        log.error(
+            f"invalid port path '{port_path}' — "
+            "expected category/portname (e.g. devel/ccache)"
+        )
+        return None
+
+    if not Path("/usr/ports").exists():
+        log.error("/usr/ports not found")
+        log.error("check out the ports tree first:")
+        log.error("  git clone --depth=1 https://git.FreeBSD.org/ports.git /usr/ports")
+        log.error("  or: portsnap fetch extract")
+        return None
+
     full_path = Path("/usr/ports") / port_path
     if not full_path.exists():
-        log.error(f"port directory not found: {full_path}")
+        log.error(f"port not found: {full_path}")
         return None
 
-    log.info(f"fetching metadata for {port_path}...")
-
-    # Variables to fetch via make -V
-    vars_to_fetch = [
-        "PORTNAME", "PORTVERSION", "COMMENT", "WWW",
-        "LICENSE", "RUN_DEPENDS", "USE_RC_SUBR",
-        "USERS", "GROUPS", "CATEGORIES"
-    ]
-
-    cmd = ["make", "-C", str(full_path)]
-    for v in vars_to_fetch:
-        cmd.extend(["-V", v])
+    log.info(f"querying port metadata for {port_path}...")
 
     try:
-        output = subprocess.check_output(cmd, text=True).splitlines()
-    except subprocess.CalledProcessError as exc:
-        log.error(f"failed to query port metadata: {exc}")
+        data = _make_query(full_path, [
+            "PORTNAME", "PKGNAME", "PORTVERSION", "COMMENT",
+            "WWW", "LICENSE", "USE_RC_SUBR", "CATEGORIES",
+        ])
+    except RuntimeError as exc:
+        log.error(str(exc))
         return None
 
-    # Map output to a dictionary
-    data = dict(zip(vars_to_fetch, output))
+    # SPDX license — first token only (ports can have multiple)
+    spdx_license = _to_spdx(data.get("LICENSE", "").split()[0] if data.get("LICENSE") else "")
 
-    # Process RUN_DEPENDS to extract package names
-    # Format: pkgname>=version:origin
-    packages = []
-    if data.get("RUN_DEPENDS"):
-        for dep in data["RUN_DEPENDS"].split():
-            # Extract the part before >= or :
-            match = re.match(r"^([^>=:]+)", dep)
-            if match:
-                pkg = match.group(1)
-                # Filter out path-based deps like /usr/local/bin/python
-                if not pkg.startswith("/"):
-                    packages.append(pkg)
+    # pkg name: PKGNAME may include version suffix (foo-1.2.3), strip it
+    pkgname = re.sub(r"-[\d].*$", "", data.get("PKGNAME", "") or data.get("PORTNAME", ""))
 
-    # Try to read pkg-descr for a longer description
+    # Description: first paragraph of pkg-descr, fallback to COMMENT
     description = data.get("COMMENT", "")
-    descr_file = full_path / "pkg-descr"
-    if descr_file.exists():
-        lines = descr_file.read_text().splitlines()
-        # Skip the WWW line at the bottom if present
-        clean_lines = [l for l in lines if not l.strip().startswith("WWW:")]
-        if clean_lines:
-            description = " ".join([l.strip() for l in clean_lines if l.strip()]).strip()
+    if (full_path / "pkg-descr").exists():
+        description = _first_paragraph((full_path / "pkg-descr").read_text()) or description
 
-    # Determine upstream repo (GitHub/GitLab)
     web_url = data.get("WWW", "")
-    repo_url = f"https://github.com/daemonless/{data.get('PORTNAME')}"
-    if "github.com" in web_url or "gitlab.com" in web_url:
-        repo_url = web_url
+    portname = data.get("PORTNAME", pkgname)
+    raw_cat = data.get("CATEGORIES", "").split()[0]
+    category = _CATEGORY_MAP.get(raw_cat, "")
+    rc_name = (
+        data.get("USE_RC_SUBR", "").split()[0]
+        if data.get("USE_RC_SUBR") else portname
+    )
 
-    return {
-        "name": data.get("PORTNAME"),
-        "title": data.get("COMMENT"),
-        "web_url": web_url,
-        "repo_url": repo_url,
-        "description": description,
-        "packages": " ".join(packages),
-        "rc_name": data.get("USE_RC_SUBR", "").split()[0] if data.get("USE_RC_SUBR") else data.get("PORTNAME"),
+    log.info(f"querying runtime deps for {pkgname}...")
+    _deps = _pkg_run_deps(pkgname)
+    if not _deps:
+        log.warn(f"no runtime deps found for '{pkgname}' via pkg rquery"
+                 " — is the pkg index up to date?")
+
+    meta = {
+        "name":           portname,
+        "pkgname":        pkgname,
+        "title":          data.get("COMMENT", ""),
+        "web_url":        web_url,
+        "repo_url":       f"https://github.com/daemonless/{portname}",
+        "description":    description,
+        "license":        spdx_license,
+        "packages":       pkgname,
+        "run_deps":       " ".join(_deps),
+        "rc_name":        rc_name,
         "freshports_url": f"https://www.freshports.org/{port_path}/",
-        "category": data.get("CATEGORIES", "").split()[0].capitalize() if data.get("CATEGORIES") else "Apps",
+        "category":       category,
     }
+
+    desc_preview = meta["description"][:80] + ("..." if len(meta["description"]) > 80 else "")
+
+    log.step("Port metadata")
+    log.success(f"name:        {portname} (pkg: {pkgname})")
+    log.success(f"description: {desc_preview}")
+    log.success(f"license:     {spdx_license}")
+    log.success(f"web:         {web_url}")
+    log.success(f"category:    {category or f'(unmapped: {raw_cat})'}")
+    log.success(f"run_deps:    {meta['run_deps'] or '(none found)'}")
+    if not category:
+        log.warn(f"no daemonless category mapping for '{raw_cat}' — set --category manually")
+    if not web_url:
+        log.warn("WWW not set in port — web_url left as placeholder")
+    if spdx_license == "UNKNOWN":
+        log.warn("LICENSE not set in port — update org.opencontainers.image.licenses manually")
+
+    return meta
 
 
 def _render_template(template_name: str, context: dict[str, str]) -> str | None:
@@ -103,7 +254,6 @@ def _render_template(template_name: str, context: dict[str, str]) -> str | None:
     if context.get("mlock") == "true":
         content = content.replace("{%- if mlock %}", "").replace("{%- endif %}", "")
     else:
-        import re
         content = re.sub(r"{%- if mlock %}.*?{%- endif %}", "", content, flags=re.DOTALL)
 
     return content
@@ -128,92 +278,87 @@ def _write_file(path: Path, content: str, dry_run: bool = False) -> bool:
     return True
 
 
+def _scaffold(
+    template: str,
+    path: Path,
+    context: dict[str, str],
+    dry_run: bool,
+    executable: bool = False,
+) -> int:
+    """Render a template and write it; return 1 if created, 0 otherwise."""
+    log.debug(f"scaffold {template!r} → {path}")
+    content = _render_template(template, context)
+    if content and _write_file(path, content, dry_run):
+        if executable and not dry_run:
+            path.chmod(0o755)
+        return 1
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     """Scaffold a new dbuild project in the current directory."""
     base = Path.cwd()
 
-    # If --freebsd-port is provided, use it to populate defaults
-    port_meta = {}
+    port_meta: dict[str, str] = {}
     if getattr(args, "freebsd_port", None):
         port_meta = _fetch_port_metadata(args.freebsd_port) or {}
 
-    # Defaults (CLI args override Port metadata, which overrides logic)
     app_name = args.name or port_meta.get("name") or base.name
     title = args.title or port_meta.get("title") or app_name.capitalize()
-    category = args.category if args.category != "Apps" else (port_meta.get("category") or "Apps")
-    app_type = args.type
+    category = (
+        args.category if args.category != "Apps"
+        else (port_meta.get("category") or "Utilities")
+    )
     port = str(args.port)
     variants = [v.strip() for v in args.variants.split(",")]
     dry_run = args.dry_run
-
-    mlock = "true" if app_type == "dotnet" else "false"
+    mlock = "true" if args.type == "dotnet" else "false"
 
     context = {
-        "name": app_name,
-        "title": title,
-        "category": category,
-        "port": port,
-        "mlock": mlock,
-        "mlock_bool": mlock,
-        "description": port_meta.get("description") or f"{title} on FreeBSD.",
-        "web_url": port_meta.get("web_url") or f"https://{app_name}.org/",
-        "repo_url": port_meta.get("repo_url") or f"https://github.com/daemonless/{app_name}",
-        "freshports_url": port_meta.get("freshports_url") or f"https://www.freshports.org/net-p2p/{app_name}/",
-        "packages": port_meta.get("packages") or app_name,
-        "rc_name": port_meta.get("rc_name") or app_name,
+        "name":           app_name,
+        "title":          title,
+        "category":       category,
+        "port":           port,
+        "mlock":          mlock,
+        "mlock_bool":     mlock,
+        "description":    port_meta.get("description") or f"{title} on FreeBSD.",
+        "web_url":        port_meta.get("web_url") or f"https://{app_name}.org/",
+        "repo_url":       port_meta.get("repo_url") or f"https://github.com/daemonless/{app_name}",
+        "freshports_url": (
+            port_meta.get("freshports_url") or
+            f"https://www.freshports.org/net-p2p/{app_name}/"
+        ),
+        "pkgname":        port_meta.get("pkgname") or app_name,
+        "packages":       port_meta.get("packages") or app_name,
+        "run_deps":       port_meta.get("run_deps") or app_name,
+        "license":        port_meta.get("license") or "UNKNOWN",
+        "rc_name":        port_meta.get("rc_name") or app_name,
     }
 
+    has_pkg = any(v.startswith("pkg") for v in variants)
+    log.debug(f"variants: {variants}  has_pkg: {has_pkg}  dry_run: {dry_run}")
+    log.debug("context:\n" + "\n".join(f"  {k} = {v!r}" for k, v in context.items()))
+
     created = 0
+    created += _scaffold("config.yaml", base / ".daemonless" / "config.yaml", context, dry_run)
+    created += _scaffold("compose.yaml", base / "compose.yaml", context, dry_run)
+    if "latest" in variants or not has_pkg:
+        created += _scaffold("template-upstream.j2", base / "Containerfile.j2", context, dry_run)
+    if has_pkg:
+        created += _scaffold("template-pkg.j2", base / "Containerfile.pkg.j2", context, dry_run)
 
-    # 1. .daemonless/config.yaml
-    config_content = _render_template("config.yaml", context)
-    if config_content and _write_file(base / ".daemonless" / "config.yaml", config_content, dry_run):
-        created += 1
+    run_path = base / "root" / "etc" / "services.d" / app_name / "run"
+    created += _scaffold("run.sh", run_path, context, dry_run, executable=True)
+    created += _scaffold("healthz.sh", base / "root" / "healthz", context, dry_run, executable=True)
 
-    # 2. compose.yaml
-    compose_content = _render_template("compose.yaml", context)
-    if compose_content and _write_file(base / "compose.yaml", compose_content, dry_run):
-        created += 1
-
-    # 3. Containerfile.j2 (Source variant - latest)
-    # Only create if 'latest' is in variants (or no pkg variants asked for)
-    if "latest" in variants or not any(v.startswith("pkg") for v in variants):
-        upstream_content = _render_template("template-upstream.j2", context)
-        if upstream_content and _write_file(base / "Containerfile.j2", upstream_content, dry_run):
-            created += 1
-
-    # 4. Containerfile.pkg.j2 (Package variant - pkg, pkg-latest)
-    if any(v.startswith("pkg") for v in variants):
-        pkg_content = _render_template("template-pkg.j2", context)
-        if pkg_content and _write_file(base / "Containerfile.pkg.j2", pkg_content, dry_run):
-            created += 1
-
-    # 5. root/etc/services.d/<app>/run
-    run_content = _render_template("run.sh", context)
-    if run_content and _write_file(base / "root" / "etc" / "services.d" / app_name / "run", run_content, dry_run):
-        # Set executable bit if not dry-run
-        if not dry_run:
-            (base / "root" / "etc" / "services.d" / app_name / "run").chmod(0o755)
-        created += 1
-
-    # 6. root/healthz
-    healthz_content = _render_template("healthz.sh", context)
-    if healthz_content and _write_file(base / "root" / "healthz", healthz_content, dry_run):
-        # Set executable bit if not dry-run
-        if not dry_run:
-            (base / "root" / "healthz").chmod(0o755)
-        created += 1
-
-    # Optional: CI configs
     if getattr(args, "woodpecker", False):
-        wp_content = _render_template("woodpecker.yaml", context)
-        if wp_content and _write_file(base / ".woodpecker.yaml", wp_content, dry_run):
-            created += 1
-
+        created += _scaffold("woodpecker.yaml", base / ".woodpecker.yaml", context, dry_run)
     if getattr(args, "github", False):
-        gh_content = _render_template("github-workflow.yaml", context)
-        if gh_content and _write_file(base / ".github" / "workflows" / "build.yaml", gh_content, dry_run):
-            created += 1
+        created += _scaffold(
+            "github-workflow.yaml",
+            base / ".github" / "workflows" / "build.yaml",
+            context, dry_run,
+        )
 
     if created == 0:
         log.info("nothing to do (all files already exist)")
