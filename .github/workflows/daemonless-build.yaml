@@ -12,6 +12,16 @@ on:
         required: false
         type: string
         default: ''
+      pre_artifact_name:
+        description: 'Artifact name to download before build (e.g. web-dist)'
+        required: false
+        type: string
+        default: ''
+      pre_artifact_path:
+        description: 'Path to download pre-build artifact into (e.g. web/dist/)'
+        required: false
+        type: string
+        default: ''
 
 env:
   REGISTRY: ghcr.io
@@ -69,6 +79,13 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download pre-build artifact
+        if: inputs.pre_artifact_name != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.pre_artifact_name }}
+          path: ${{ inputs.pre_artifact_path }}
 
       - name: Prepare VM data directory
         run: sudo mkdir -p /mnt/freebsd-vm && sudo chmod 777 /mnt/freebsd-vm
