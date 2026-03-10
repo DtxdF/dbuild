@@ -7,12 +7,85 @@ from embedded templates with dynamic placeholder replacement.
 from __future__ import annotations
 
 import argparse
+import re
+import subprocess
 from pathlib import Path
 
 from dbuild import log
 
 # Templates are co-located in the package
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+def _fetch_port_metadata(port_path: str) -> dict[str, str] | None:
+    """Fetch metadata from a FreeBSD port in /usr/ports."""
+    full_path = Path("/usr/ports") / port_path
+    if not full_path.exists():
+        log.error(f"port directory not found: {full_path}")
+        return None
+
+    log.info(f"fetching metadata for {port_path}...")
+
+    # Variables to fetch via make -V
+    vars_to_fetch = [
+        "PORTNAME", "PORTVERSION", "COMMENT", "WWW",
+        "LICENSE", "RUN_DEPENDS", "USE_RC_SUBR",
+        "USERS", "GROUPS", "CATEGORIES"
+    ]
+
+    cmd = ["make", "-C", str(full_path)]
+    for v in vars_to_fetch:
+        cmd.extend(["-V", v])
+
+    try:
+        output = subprocess.check_output(cmd, text=True).splitlines()
+    except subprocess.CalledProcessError as exc:
+        log.error(f"failed to query port metadata: {exc}")
+        return None
+
+    # Map output to a dictionary
+    data = dict(zip(vars_to_fetch, output))
+
+    # Process RUN_DEPENDS to extract package names
+    # Format: pkgname>=version:origin
+    packages = []
+    if data.get("RUN_DEPENDS"):
+        for dep in data["RUN_DEPENDS"].split():
+            # Extract the part before >= or :
+            match = re.match(r"^([^>=:]+)", dep)
+            if match:
+                pkg = match.group(1)
+                # Filter out path-based deps like /usr/local/bin/python
+                if not pkg.startswith("/"):
+                    packages.append(pkg)
+
+    # Try to read pkg-descr for a longer description
+    description = data.get("COMMENT", "")
+    descr_file = full_path / "pkg-descr"
+    if descr_file.exists():
+        lines = descr_file.read_text().splitlines()
+        # Skip the WWW line at the bottom if present
+        clean_lines = [l for l in lines if not l.strip().startswith("WWW:")]
+        if clean_lines:
+            description = " ".join([l.strip() for l in clean_lines if l.strip()]).strip()
+
+    # Determine upstream repo (GitHub/GitLab)
+    web_url = data.get("WWW", "")
+    repo_url = f"https://github.com/daemonless/{data.get('PORTNAME')}"
+    if "github.com" in web_url or "gitlab.com" in web_url:
+        repo_url = web_url
+
+    return {
+        "name": data.get("PORTNAME"),
+        "title": data.get("COMMENT"),
+        "web_url": web_url,
+        "repo_url": repo_url,
+        "description": description,
+        "packages": " ".join(packages),
+        "rc_name": data.get("USE_RC_SUBR", "").split()[0] if data.get("USE_RC_SUBR") else data.get("PORTNAME"),
+        "freshports_url": f"https://www.freshports.org/{port_path}/",
+        "category": data.get("CATEGORIES", "").split()[0].capitalize() if data.get("CATEGORIES") else "Apps",
+    }
 
 
 def _render_template(template_name: str, context: dict[str, str]) -> str | None:
@@ -59,10 +132,15 @@ def run(args: argparse.Namespace) -> int:
     """Scaffold a new dbuild project in the current directory."""
     base = Path.cwd()
 
-    # Defaults
-    app_name = args.name or base.name
-    title = args.title or app_name.capitalize()
-    category = args.category
+    # If --freebsd-port is provided, use it to populate defaults
+    port_meta = {}
+    if getattr(args, "freebsd_port", None):
+        port_meta = _fetch_port_metadata(args.freebsd_port) or {}
+
+    # Defaults (CLI args override Port metadata, which overrides logic)
+    app_name = args.name or port_meta.get("name") or base.name
+    title = args.title or port_meta.get("title") or app_name.capitalize()
+    category = args.category if args.category != "Apps" else (port_meta.get("category") or "Apps")
     app_type = args.type
     port = str(args.port)
     variants = [v.strip() for v in args.variants.split(",")]
@@ -77,7 +155,12 @@ def run(args: argparse.Namespace) -> int:
         "port": port,
         "mlock": mlock,
         "mlock_bool": mlock,
-        "description": f"{title} on FreeBSD.",
+        "description": port_meta.get("description") or f"{title} on FreeBSD.",
+        "web_url": port_meta.get("web_url") or f"https://{app_name}.org/",
+        "repo_url": port_meta.get("repo_url") or f"https://github.com/daemonless/{app_name}",
+        "freshports_url": port_meta.get("freshports_url") or f"https://www.freshports.org/net-p2p/{app_name}/",
+        "packages": port_meta.get("packages") or app_name,
+        "rc_name": port_meta.get("rc_name") or app_name,
     }
 
     created = 0
