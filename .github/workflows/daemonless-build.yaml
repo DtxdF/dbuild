@@ -209,7 +209,8 @@ jobs:
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Discord notification
-        if: always() && secrets.DISCORD_WEBHOOK != ''
+        if: always()
+        continue-on-error: true
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         uses: daemonless/daemonless/.github/actions/discord-notify@main
@@ -337,10 +338,12 @@ jobs:
           retention-days: 30
 
       - name: Discord notification
-        if: always() && secrets.DISCORD_WEBHOOK != ''
+        if: always()
+        continue-on-error: true
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
           if [ "${{ job.status }}" = "success" ]; then
             COLOR=3066993
             STATUS="Success"

@@ -156,6 +156,11 @@ def _make_parser() -> argparse.ArgumentParser:
         description="Generate starter files for a new dbuild project.",
     )
     init_parser.add_argument(
+        "--freebsd-port",
+        metavar="PORT",
+        help="initialize from a FreeBSD port (e.g. net-p2p/bazarr)",
+    )
+    init_parser.add_argument(
         "--name",
         metavar="NAME",
         help="application name (e.g. radarr)",

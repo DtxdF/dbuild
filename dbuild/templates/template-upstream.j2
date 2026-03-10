@@ -2,6 +2,7 @@ ARG BASE_VERSION=15
 FROM ghcr.io/daemonless/base:${BASE_VERSION}
 
 ARG FREEBSD_ARCH=amd64
+ARG PACKAGES="{{ packages }}"
 ARG APP_VERSION="latest"
 ARG DOWNLOAD_URL="https://example.com/{{ name }}-${APP_VERSION}.tar.gz"
 
@@ -16,9 +17,16 @@ LABEL org.opencontainers.image.title="{{ title }}"
       io.daemonless.category="{{ category }}" 
       io.daemonless.port="{{ port }}" 
       io.daemonless.arch="${FREEBSD_ARCH}" 
+      io.daemonless.packages="${PACKAGES}"
       {%- if mlock %}
       org.freebsd.jail.allow.mlock="required" 
       {%- endif %}
+
+# Install dependencies
+RUN pkg update && 
+    pkg install -y ${PACKAGES} && 
+    pkg clean -ay && 
+    rm -rf /var/cache/pkg/* /var/db/pkg/repos/*
 
 # Download and install {{ name }}
 RUN fetch -qo /tmp/{{ name }}.tar.gz "${DOWNLOAD_URL}" && 
