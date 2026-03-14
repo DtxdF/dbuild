@@ -79,6 +79,7 @@ def _enrich_metadata(cfg: Config) -> dict[str, Any]:
         "icon": meta.icon,
         "healthcheck": meta.healthcheck,
         "notes": meta.notes,
+        "registry": cfg.registry or "ghcr.io/daemonless",
         "repo_url": f"https://github.com/daemonless/{cfg.image}",
         "tags": [v.tag for v in cfg.variants],
         "architectures": cfg.architectures,
