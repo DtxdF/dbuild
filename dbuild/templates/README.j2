@@ -1,23 +1,35 @@
 {#- ==================================================================
-    Macros — deployment snippets, shared between GitHub and MkDocs.
-    port_var is passed as argument so each renderer controls the value.
+    Logic — Resolve values based on render_mode (MkDocs vs GitHub)
+    ================================================================== #}
+{%- if render_mode == "mkdocs" %}
+  {%- set reg_var = "@REGISTRY@" %}
+  {%- set cfg_root = "@CONTAINER_CONFIG_ROOT@" %}
+  {%- set port_var = "@" ~ name.upper().replace("-", "_") ~ "_PORT@" %}
+{%- else %}
+  {%- set reg_var = registry %}
+  {%- set cfg_root = "/path/to/containers" %}
+  {%- set port_var = ports[0].port if ports else "" %}
+{%- endif -%}
+
+{#- ==================================================================
+    Macros — deployment snippets
     ================================================================== #}
 
-{%- macro compose_snippet(port_var) -%}
+{%- macro compose_snippet() -%}
 services:
   {{ name }}:
-    image: @REGISTRY@/{{ name }}:latest
+    image: {{ reg_var }}/{{ name }}:latest
     container_name: {{ name }}
 {%- if env %}
     environment:
 {%- for e in env %}
-      - {{ e.name }}={{ e.placeholder if e.placeholder else e.default }}
+      - {{ e.name }}={{ e.placeholder if (render_mode == "mkdocs" and e.placeholder) else e.default }}
 {%- endfor %}
 {%- endif %}
 {%- if volumes %}
     volumes:
 {%- for v in volumes %}
-      - "{{ v.root_var ~ "/" if v.root_var else "" }}{{ v.placeholder if v.placeholder else v.source }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
+      - "{% if v.root_var %}{{ cfg_root }}/{% else %}/path/to/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
 {%- endfor %}
 {%- endif %}
 {%- if ports %}
@@ -47,9 +59,7 @@ services:
 ```
 DIRECTOR_PROJECT={{ name }}
 {%- for e in env %}
-{%- if e.placeholder %}
-{{ e.name }}={{ e.placeholder }}
-{%- endif %}
+{{ e.name }}={{ e.placeholder if (render_mode == "mkdocs" and e.placeholder) else e.default }}
 {%- endfor %}
 ```
 
@@ -69,12 +79,19 @@ services:
   {{ name }}:
     name: {{ name | replace("-", "_") }}
     options:
-      - from: @REGISTRY@/{{ name }}:latest
+      - from: {{ reg_var }}/{{ name }}:latest
 {%- if appjail and appjail.makejail and appjail.makejail.options %}
 {%- for opt in appjail.makejail.options %}
+{%- if opt is mapping %}
+{%- for k, v in opt.items() %}
+      - {{ k }}: "{{ v }}"
+{%- endfor %}
+{%- else %}
       - {{ opt }}
+{%- endif %}
 {%- endfor %}
 {%- endif %}
+
 {%- if env %}
     oci:
       environment:
@@ -86,9 +103,10 @@ services:
 {%- if volumes %}
     volumes:
 {%- for v in volumes %}
-      - {{ v.placeholder | replace("@", "") | replace("_PATH", "") | lower }}: {{ v.path }}
+      - {{ v.placeholder.replace("@", "") if (render_mode == "mkdocs" and v.placeholder) else v.source.replace("/", "_").replace(".", "_").strip("_") }}: {{ v.path }}
 {%- endfor %}
 {%- endif %}
+
 {%- if appjail and appjail.depends_on %}
 {%- for dep in appjail.depends_on %}
   {{ dep.name }}:
@@ -105,7 +123,6 @@ services:
         - {{ k }}: "{{ v }}"
 {%- endfor %}
 {%- endif %}
-
 {%- if dep.volumes %}
     volumes:
 {%- for k, v in dep.volumes.items() %}
@@ -114,12 +131,13 @@ services:
 {%- endif %}
 {%- endfor %}
 {%- endif %}
+
 {%- if volumes or (appjail and appjail.depends_on) %}
 volumes:
 {%- if volumes %}
 {%- for v in volumes %}
-  {{ v.placeholder | replace("@", "") | replace("_PATH", "") | lower }}:
-    device: '{% if v.root_var %}@CONTAINER_CONFIG_ROOT@/{% endif %}{{ v.placeholder }}'
+  {{ v.placeholder.replace("@", "") if (render_mode == "mkdocs" and v.placeholder) else v.source.replace("/", "_").replace(".", "_").strip("_") }}:
+    device: '{% if v.root_var %}{{ cfg_root }}/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}'
 {%- endfor %}
 {%- endif %}
 {%- if appjail and appjail.depends_on %}
@@ -142,7 +160,7 @@ OPTION container=boot args:--pull
 ```
 {%- endmacro %}
 
-{%- macro cli_snippet(port_var) -%}
+{%- macro cli_snippet() -%}
 podman run -d --name {{ name }} \
 {%- for p in ports %}
 {%- if loop.first %}
@@ -158,25 +176,25 @@ podman run -d --name {{ name }} \
   --health-cmd {{ healthcheck }} \
 {%- endif %}
 {%- for e in env %}
-  -e {{ e.name }}={{ e.placeholder if e.placeholder else e.default }} \
+  -e {{ e.name }}={{ e.placeholder if (render_mode == "mkdocs" and e.placeholder) else e.default }} \
 {%- endfor %}
 {%- for v in volumes %}
-  -v {{ v.root_var ~ "/" if v.root_var else "" }}{{ v.placeholder if v.placeholder else v.source }}:{{ v.path }}{{ " # optional" if v.optional else "" }} \
+  -v {% if v.root_var %}{{ cfg_root }}/{% else %}/path/to/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}:{{ v.path }}{{ " # optional" if v.optional else "" }} \
 {%- endfor %}
-  @REGISTRY@/{{ name }}:latest
+  {{ reg_var }}/{{ name }}:latest
 {%- endmacro %}
 
-{%- macro ansible_snippet(port_var) -%}
+{%- macro ansible_snippet() -%}
 - name: Deploy {{ name }}
   containers.podman.podman_container:
     name: {{ name }}
-    image: @REGISTRY@/{{ name }}:latest
+    image: {{ reg_var }}/{{ name }}:latest
     state: started
     restart_policy: always
 {%- if env %}
     env:
 {%- for e in env %}
-      {{ e.name }}: "{{ e.placeholder if e.placeholder else e.default }}"
+      {{ e.name }}: "{{ e.placeholder if (render_mode == "mkdocs" and e.placeholder) else e.default }}"
 {%- endfor %}
 {%- endif %}
 {%- if ports %}
@@ -192,36 +210,49 @@ podman run -d --name {{ name }} \
 {%- if volumes %}
     volumes:
 {%- for v in volumes %}
-      - "{{ v.root_var ~ "/" if v.root_var else "" }}{{ v.placeholder if v.placeholder else v.source }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
+      - "{% if v.root_var %}{{ cfg_root }}/{% else %}/path/to/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
 {%- endfor %}
 {%- endif %}
 {%- if mlock %}
     annotation:
       org.freebsd.jail.allow.mlock: "true"
 {%- endif %}
-{%- endmacro %}
+{%- endmacro -%}
 
 {#- ==================================================================
-    GitHub README — plain markdown, no MkDocs directives.
-    README.mkdocs.j2 extends this and overrides the blocks below.
+    Template Output
     ================================================================== #}
+{%- if render_mode == "mkdocs" %}
+{%- extends "README.mkdocs.j2" %}
+{%- else %}
 <!--
 THIS FILE IS AUTOGENERATED - DO NOT EDIT MANUALLY
 Source: dbuild templates
 -->
 
-# {{ icon }} {{ title }}
+# {% if render_mode == "mkdocs" %}{{ icon }} {% endif %}{{ title }}
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/daemonless/{{ name }}/build.yaml?style=flat-square&label=Build&color=green)](https://github.com/daemonless/{{ name }}/actions)
 [![Last Commit](https://img.shields.io/github/last-commit/daemonless/{{ name }}?style=flat-square&label=Last+Commit&color=blue)](https://github.com/daemonless/{{ name }}/commits)
 
 {{ description }}
 
+| | |
+|---|---|
+{%- if ports %}
+| **Port** | {{ ports[0].port }} |
+{%- endif %}
+| **Registry** | `{{ registry }}/{{ name }}` |
+| **Source** | [{{ upstream_url }}]({{ upstream_url }}) |
+{%- if web_url %}
+| **Website** | [{{ web_url }}]({{ web_url }}) |
+{%- endif %}
+
 ## Version Tags
 
 | Tag | Description | Best For |
 | :--- | :--- | :--- |
-| `latest` | **Upstream Binary**. Downloads the official release. | Most users. Matches Linux Docker behavior. |
+| `latest` | {% if upstream_binary %}**Upstream Binary**. Built from official release.{% else %}**FreeBSD Port**. Built from latest FreeBSD packages.{% endif %} | Most users. Matches Linux Docker behavior. |
 {%- if tags and 'pkg' in tags %}
 | `pkg` | **FreeBSD Quarterly**. Uses stable, tested packages. | Production stability. |
 | `pkg-latest` | **FreeBSD Latest**. Rolling package updates. | Newest FreeBSD features. |
@@ -229,19 +260,14 @@ Source: dbuild templates
 
 ## Prerequisites
 
-{% block prerequisites %}
-Before deploying, ensure your host environment is ready. See the [Quick Start Guide](https://daemonless.io/quick-start) for host setup instructions.
-{% endblock %}
+Before deploying, ensure your host environment is ready. See the [Quick Start Guide](https://daemonless.io/guides/quick-start) for host setup instructions.
 
 ## Deployment
-
-{% block deployment_tabs %}
-{%- set port_var = ports[0].port | string if ports else "" %}
 
 ### Podman Compose
 
 ```yaml
-{{ compose_snippet(port_var) }}
+{{ compose_snippet() }}
 ```
 
 {% if appjail_enabled %}
@@ -253,21 +279,18 @@ Before deploying, ensure your host environment is ready. See the [Quick Start Gu
 ### Podman CLI
 
 ```bash
-{{ cli_snippet(port_var) }}
+{{ cli_snippet() }}
 ```
 
 ### Ansible
 
 ```yaml
-{{ ansible_snippet(port_var) }}
+{{ ansible_snippet() }}
 ```
 
 {% if ports %}
-Access the Web UI at: `http://localhost:{{ port_var }}`
+Access the Web UI at: `http://localhost:{{ ports[0].port }}`
 {% endif %}
-{% endblock %}
-
-{% block interactive_config %}{% endblock %}
 
 ## Parameters
 
@@ -279,7 +302,7 @@ Access the Web UI at: `http://localhost:{{ port_var }}`
 {%- for e in env %}
 | `{{ e.name }}` | `{{ e.default }}` | {{ e.desc }} |
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 {%- if volumes %}
 ### Volumes
@@ -289,7 +312,7 @@ Access the Web UI at: `http://localhost:{{ port_var }}`
 {%- for v in volumes %}
 | `{{ v.path }}` | {{ v.desc }}{{ " (Optional)" if v.optional else "" }} |
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 {%- if ports %}
 ### Ports
@@ -299,7 +322,7 @@ Access the Web UI at: `http://localhost:{{ port_var }}`
 {%- for p in ports %}
 | `{{ p.port }}` | {{ p.protocol|upper }} | {{ p.desc }} |
 {%- endfor %}
-{% endif %}
+{%- endif %}
 
 {%- if notes %}
 
@@ -307,16 +330,11 @@ Access the Web UI at: `http://localhost:{{ port_var }}`
 
 {%- endif %}
 
-{% block implementation_details %}
 **Architectures:** {{ architectures | default(['amd64']) | join(', ') }}
 **User:** `{{ user }}` (UID/GID via PUID/PGID, defaults to 1000:1000)
 **Base:** FreeBSD 15.0
-{% endblock %}
-
-{% block links %}
-[Website]({{ web_url }}) | [Source Code]({{ upstream_url }})
-{% endblock %}
 
 ---
 
 Need help? Join our [Discord](https://discord.gg/Kb9tkhecZT) community.
+{%- endif %}
