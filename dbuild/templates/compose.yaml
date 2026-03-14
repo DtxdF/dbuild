@@ -5,9 +5,9 @@ x-daemonless:
   icon: ":material-apps:"
   category: "{{ category }}"
   description: "{{ description }}"
-  upstream_url: "https://github.com/{{ name }}/{{ name }}"
-  web_url: "https://{{ name }}.org/"
-  freshports_url: "https://www.freshports.org/category/{{ name }}/"
+  upstream_url: "{{ repo_url }}"
+  web_url: "{{ web_url }}"
+  freshports_url: "{{ freshports_url }}"
   user: "bsd"
   mlock: {{ mlock_bool }}
   
