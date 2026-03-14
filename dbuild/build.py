@@ -124,6 +124,10 @@ def run(cfg: Config, args: argparse.Namespace) -> None:
         * ``variant`` -- build only this tag (optional).
         * ``arch``    -- target architecture override (optional).
     """
+    if cfg.type == "stack":
+        log.info("type: stack — nothing to build")
+        return
+
     variant_filter: str | None = getattr(args, "variant", None)
     arch: str = getattr(args, "arch", None) or cfg.architectures[0]
 

@@ -174,13 +174,16 @@ def run(cfg: Config, args: argparse.Namespace) -> None:
 
     if fmt == "human" or getattr(args, "human", False):
         # Human-readable output (used by `dbuild info`)
-        if not matrix:
-            log.warn("No variants detected")
-            return
         log.step(f"Image: {cfg.full_image}")
         if cfg.metadata.title:
             log.info(f"Title: {cfg.metadata.title}")
         log.info(f"Type: {cfg.type} ({cfg.metadata.category})")
+        if cfg.type == "stack":
+            log.info("Stack — no buildable variants")
+            return
+        if not matrix:
+            log.warn("No variants detected")
+            return
         log.info(f"Architectures: {', '.join(cfg.architectures)}")
         if cfg.test and cfg.test.annotations:
             log.info(f"Annotations: {', '.join(cfg.test.annotations)}")

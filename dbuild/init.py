@@ -208,9 +208,8 @@ def _fetch_port_metadata(port_path: str) -> dict[str, str] | None:
     meta = {
         "name":           portname,
         "pkgname":        pkgname,
-        "title":          data.get("COMMENT", ""),
         "web_url":        web_url,
-        "repo_url":       f"https://github.com/daemonless/{portname}",
+        "upstream_url":   web_url,
         "description":    description,
         "license":        spdx_license,
         "packages":       pkgname,
@@ -304,7 +303,9 @@ def run(args: argparse.Namespace) -> int:
         port_meta = _fetch_port_metadata(args.freebsd_port) or {}
 
     app_name = args.name or port_meta.get("name") or base.name
-    title = args.title or port_meta.get("title") or app_name.capitalize()
+    title = args.title or app_name.capitalize()
+    if port_meta and not args.title:
+        log.warn(f"title set to '{title}' — use --title for proper capitalization (e.g. --title FFmpeg)")
     category = (
         args.category if args.category != "Apps"
         else (port_meta.get("category") or "Utilities")
@@ -323,7 +324,8 @@ def run(args: argparse.Namespace) -> int:
         "mlock_bool":     mlock,
         "description":    port_meta.get("description") or f"{title} on FreeBSD.",
         "web_url":        port_meta.get("web_url") or f"https://{app_name}.org/",
-        "repo_url":       port_meta.get("repo_url") or f"https://github.com/daemonless/{app_name}",
+        "upstream_url":   port_meta.get("upstream_url") or port_meta.get("web_url") or f"https://github.com/daemonless/{app_name}",
+        "repo_url":       f"https://github.com/daemonless/{app_name}",
         "freshports_url": (
             port_meta.get("freshports_url") or
             f"https://www.freshports.org/net-p2p/{app_name}/"

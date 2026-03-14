@@ -1,0 +1,58 @@
+{% extends "README.j2" %}
+
+{% block prerequisites %}
+!!! failure "Root Privileges Required"
+    **Podman on FreeBSD currently requires root.** All commands must be run as root (or via `doas`/`sudo`).
+
+Before deploying, ensure your host environment is ready. See the [Quick Start Guide](../quick-start.md) for host setup instructions.
+{% endblock %}
+
+{% block deployment_tabs %}
+{%- set port_var = "@" ~ name.upper().replace("-", "_") ~ "_PORT@" %}
+=== ":material-docker: Podman Compose"
+
+    ```yaml
+    {{ compose_snippet(port_var) | indent(4) }}
+    ```
+
+{% if appjail_enabled %}
+=== ":appjail-appjail: AppJail Director"
+
+    {{ appjail_snippet() | indent(4) }}
+
+{% endif %}
+=== ":material-console: Podman CLI"
+
+    ```bash
+    {{ cli_snippet(port_var) | indent(4) }}
+    ```
+
+=== ":simple-ansible: Ansible"
+
+    ```yaml
+    {{ ansible_snippet(port_var) | indent(4) }}
+    ```
+
+{% if ports %}
+Access the Web UI at: `http://localhost:{{ port_var }}`
+{% endif %}
+{% endblock %}
+
+{% block interactive_config %}
+### Interactive Configuration
+
+<div class="placeholder-settings-panel"></div>
+{% endblock %}
+
+{% block implementation_details %}
+!!! info "Implementation Details"
+
+    - **Architectures:** {{ architectures | default(['amd64']) | join(', ') }}
+    - **User:** `{{ user }}` (UID/GID set via [PUID/PGID](../guides/permissions.md)). Defaults to `1000:1000`.
+    - **Base:** Built on `@REGISTRY@/base` (FreeBSD 15.0).
+{% endblock %}
+
+{% block links %}
+[Website]({{ web_url }}){ .md-button .md-button--primary }
+[Source Code]({{ upstream_url }}){ .md-button }
+{% endblock %}
