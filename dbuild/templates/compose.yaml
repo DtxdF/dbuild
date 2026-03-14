@@ -5,12 +5,14 @@ x-daemonless:
   icon: ":material-apps:"
   category: "{{ category }}"
   description: "{{ description }}"
-  upstream_url: "{{ repo_url }}"
+  upstream_url: "{{ upstream_url }}"
   web_url: "{{ web_url }}"
   freshports_url: "{{ freshports_url }}"
   user: "bsd"
   mlock: {{ mlock_bool }}
-  
+
+  appjail:
+
   docs:
     env:
       PUID: "User ID for the application process"

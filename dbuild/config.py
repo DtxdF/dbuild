@@ -87,6 +87,7 @@ class Metadata:
     upstream_binary: bool = True
     icon: str = ":material-docker:"
     notes: str = ""
+    appjail: dict[str, Any] | None = None
     healthcheck: dict[str, Any] | None = None
     docs: dict[str, Any] | str = field(default_factory=dict)
 
@@ -340,6 +341,24 @@ def _parse_service_data(
     return env, volumes, ports
 
 
+_APPJAIL_ABSENT = object()
+
+
+def _parse_appjail(meta: dict[str, Any]) -> dict[str, Any] | None:
+    """Parse appjail from x-daemonless metadata.
+
+    - Key absent → None (disabled)
+    - ``appjail:`` (bare/null) or ``appjail: true`` → {} (enabled, template defaults)
+    - ``appjail: {director: ...}`` → that dict (enabled, custom config)
+    """
+    raw = meta.get("appjail", _APPJAIL_ABSENT)
+    if raw is _APPJAIL_ABSENT:
+        return None
+    if raw is None or raw is True or raw == {}:
+        return {}
+    return raw
+
+
 def _parse_metadata(data: dict[str, Any], app_name: str) -> Metadata:
     """Parse the ``x-daemonless:`` section of the config file."""
     meta = data.get("x-daemonless", {})
@@ -354,6 +373,7 @@ def _parse_metadata(data: dict[str, Any], app_name: str) -> Metadata:
         upstream_binary=meta.get("upstream_binary", True),
         icon=meta.get("icon", ":material-docker:"),
         notes=meta.get("notes", ""),
+        appjail=_parse_appjail(meta),
         healthcheck=meta.get("healthcheck"),
         docs=meta.get("docs", {}),
     )
@@ -530,7 +550,9 @@ def load(base: Path | None = None) -> Config:
         "architectures",
         global_build.get("architectures", ["amd64"]),
     )
-    image_type = local_data.get("type", global_data.get("type", "app"))
+    image_type = local_data.get("type",
+        compose_data.get("x-daemonless", {}).get("type",
+        global_data.get("type", "app")))
 
     # CIT config (Merge legacy + compose)
     test = _parse_test_config(local_data, compose_data)
