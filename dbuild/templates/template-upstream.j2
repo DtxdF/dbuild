@@ -2,23 +2,30 @@ ARG BASE_VERSION=15
 FROM ghcr.io/daemonless/base:${BASE_VERSION}
 
 ARG FREEBSD_ARCH=amd64
+ARG PACKAGES="{{ run_deps }}"
 ARG APP_VERSION="latest"
 ARG DOWNLOAD_URL="https://example.com/{{ name }}-${APP_VERSION}.tar.gz"
 
-# --- Metadata (Injected by Generator) ---
 LABEL org.opencontainers.image.title="{{ title }}" 
       org.opencontainers.image.description="{{ description }}" 
       org.opencontainers.image.source="{{ repo_url }}" 
       org.opencontainers.image.url="{{ web_url }}" 
-      org.opencontainers.image.licenses="Apache-2.0" 
+      org.opencontainers.image.licenses="{{ license }}"
       org.opencontainers.image.vendor="daemonless" 
       org.opencontainers.image.authors="daemonless" 
       io.daemonless.category="{{ category }}" 
       io.daemonless.port="{{ port }}" 
       io.daemonless.arch="${FREEBSD_ARCH}" 
+      io.daemonless.packages="${PACKAGES}"
       {%- if mlock %}
       org.freebsd.jail.allow.mlock="required" 
       {%- endif %}
+
+# Install dependencies
+RUN pkg update && 
+    pkg install -y ${PACKAGES} && 
+    pkg clean -ay && 
+    rm -rf /var/cache/pkg/* /var/db/pkg/repos/*
 
 # Download and install {{ name }}
 RUN fetch -qo /tmp/{{ name }}.tar.gz "${DOWNLOAD_URL}" && 
@@ -33,8 +40,8 @@ COPY root/ /
 # Set permissions
 RUN chmod +x /etc/services.d/{{ name }}/run /healthz
 
-# --- Expose (Injected by Generator) ---
+# Expose
 EXPOSE {{ port }}
 
-# --- Volumes (Injected by Generator) ---
+# Volumes
 VOLUME /config

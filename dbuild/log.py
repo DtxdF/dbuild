@@ -20,11 +20,13 @@ _COLORS = {
     "cyan": "\033[36m",
 }
 
-_use_color: bool | None = None
+# Mutable module-level state — intentionally not ALL_CAPS constants.
+_use_color: bool | None = None  # pylint: disable=invalid-name
+_verbose: bool = False           # pylint: disable=invalid-name
 
 
 def _color_enabled() -> bool:
-    global _use_color
+    global _use_color  # pylint: disable=global-statement
     if _use_color is None:
         _use_color = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
     return _use_color
@@ -32,8 +34,19 @@ def _color_enabled() -> bool:
 
 def set_color(enabled: bool) -> None:
     """Override automatic color detection."""
-    global _use_color
+    global _use_color  # pylint: disable=global-statement
     _use_color = enabled
+
+
+def set_verbose(enabled: bool) -> None:
+    """Enable or disable debug-level output."""
+    global _verbose  # pylint: disable=global-statement
+    _verbose = enabled
+
+
+def is_verbose() -> bool:
+    """Return True if verbose/debug output is enabled."""
+    return _verbose
 
 
 def _c(name: str) -> str:
@@ -53,22 +66,33 @@ def step(message: str) -> None:
     sys.stdout.flush()
 
 
+def debug(message: str) -> None:
+    """Print only when verbose mode is enabled."""
+    if _verbose:
+        sys.stdout.write(f"{_c('cyan')}[debug]{_c('reset')} {message}\n")
+        sys.stdout.flush()
+
+
 def info(message: str) -> None:
+    """Print an informational message."""
     sys.stdout.write(f"{_c('blue')}[info]{_c('reset')} {message}\n")
     sys.stdout.flush()
 
 
 def warn(message: str) -> None:
+    """Print a warning to stderr."""
     sys.stderr.write(f"{_c('yellow')}[warn]{_c('reset')} {message}\n")
     sys.stderr.flush()
 
 
 def error(message: str) -> None:
+    """Print an error to stderr."""
     sys.stderr.write(f"{_c('red')}[error]{_c('reset')} {message}\n")
     sys.stderr.flush()
 
 
 def success(message: str) -> None:
+    """Print a success message."""
     sys.stdout.write(f"{_c('green')}[ok]{_c('reset')} {message}\n")
     sys.stdout.flush()
 
