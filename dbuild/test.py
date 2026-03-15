@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from dbuild import log, podman
-from dbuild.config import Config, TestConfig, Variant
+from dbuild.config import AppTestConfig, Config, Variant
 
 # ── Cleanup registry (survives SIGTERM) ───────────────────────────────
 
@@ -430,7 +430,7 @@ def _write_json_result(
 def _test_variant(
     cfg: Config,
     variant: Variant,
-    test: TestConfig,
+    test: AppTestConfig,
     *,
     json_output: str | None = None,
 ) -> int:

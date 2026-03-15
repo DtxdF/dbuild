@@ -4,19 +4,16 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 from pathlib import Path
 from typing import Any
-
-try:
-    import yaml
-except ImportError:
-    yaml = None
 
 try:
     import jinja2
 except ImportError:
     jinja2 = None
 
+import dbuild
 from dbuild import log
 from dbuild.config import Config
 
@@ -39,6 +36,120 @@ Source: dbuild templates
 
 """
 
+
+# ── Extended Documentation Content ────────────────────────────────────
+
+DOCS_CONTENT = {
+    "DESCRIPTION": (
+        "dbuild provides a streamlined interface for creating and managing OCI-compliant "
+        "containers that run natively in FreeBSD Jails. It eliminates the friction of "
+        "configuring ocijail, networking, and jail templates by using a 'Registry-First' "
+        "approach. Configuration is automatically derived from Git remotes and standard "
+        "Compose files, allowing for reproducible builds across local and CI environments."
+    ),
+    "ENVIRONMENT": {
+        "DBUILD_REGISTRY": "Override the target container registry (e.g., ghcr.io/myorg).",
+        "GITHUB_TOKEN": "Authentication token for GitHub Packages and build secrets.",
+        "GITHUB_ACTOR": "The username associated with GITHUB_TOKEN.",
+        "DOCKERHUB_USERNAME": "Enable mirroring by providing a Docker Hub username.",
+        "DOCKERHUB_TOKEN": "Personal access token for Docker Hub mirroring.",
+        "CHROME_BIN": "Path to the Chrome/Chromium binary for screenshot testing.",
+    },
+    "FILES": {
+        "compose.yaml": "The primary source of truth for metadata and documentation.",
+        ".daemonless/config.yaml": "Project-specific build and test overrides.",
+        "/usr/local/etc/daemonless.yaml": "Global templates for shared build variants.",
+    },
+    "EXAMPLES": [
+        ("Build and push all variants", "dbuild build --push"),
+        ("Initialize from a FreeBSD Port", "dbuild init --freebsd-port net-p2p/transmission"),
+        ("Run specific tests", "dbuild test --variant pkg"),
+    ],
+    "EXIT_STATUS": {
+        "0": "Success.",
+        "1": "Build, test, or system failure.",
+        "2": "Command-line usage error (invalid flags or arguments).",
+    },
+}
+
+
+def generate_manpage(parser: argparse.ArgumentParser) -> str:
+    """Generate a ROFF format man page from the CLI parser."""
+    today = date.today().strftime("%Y-%m-%d")
+    output = []
+    output.append(f'.TH DBUILD 1 "{today}" "dbuild {dbuild.VERSION}" "User Commands"')
+    output.append(".SH NAME")
+    output.append("dbuild \\- FreeBSD OCI container image build tool")
+    output.append(".SH SYNOPSIS")
+    output.append(".B dbuild")
+    output.append("[\\fIOPTIONS\\fR] \\fICOMMAND\\fR [\\fIARGS\\fR...]")
+
+    output.append(".SH DESCRIPTION")
+    output.append(DOCS_CONTENT["DESCRIPTION"])
+
+    subparser_actions = [
+        action for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    ]
+    for subparser_action in subparser_actions:
+        output.append(".SH COMMANDS")
+        for choice, subparser in sorted(subparser_action.choices.items()):
+            if choice == "docs":
+                continue
+            output.append(".TP")
+            output.append(f"\\fB{choice}\\fR")
+            desc = subparser.description or subparser.help
+            output.append(desc)
+
+            unique_actions = []
+            seen = set()
+            for action in subparser._option_string_actions.values():
+                if action not in seen:
+                    unique_actions.append(action)
+                    seen.add(action)
+
+            if unique_actions:
+                output.append(".RS")
+                for action in unique_actions:
+                    opts = ", ".join(f"\\fB{o}\\fR" for o in action.option_strings)
+                    help_text = (action.help or "").replace("%(default)s", str(action.default))
+                    output.append(".TP")
+                    output.append(opts)
+                    output.append(help_text)
+                output.append(".RE")
+
+    output.append(".SH ENVIRONMENT")
+    for var, desc in DOCS_CONTENT["ENVIRONMENT"].items():
+        output.append(".TP")
+        output.append(f"\\fI{var}\\fR")
+        output.append(desc)
+
+    output.append(".SH FILES")
+    for file, desc in DOCS_CONTENT["FILES"].items():
+        output.append(".TP")
+        output.append(f"\\fI{file}\\fR")
+        output.append(desc)
+
+    output.append(".SH EXAMPLES")
+    for title, cmd in DOCS_CONTENT["EXAMPLES"]:
+        output.append(f"{title}:")
+        output.append(".IP")
+        output.append(f"dbuild {cmd.replace('dbuild ', '')}")
+
+    output.append(".SH EXIT STATUS")
+    for code, desc in DOCS_CONTENT["EXIT_STATUS"].items():
+        output.append(".TP")
+        output.append(f"\\fB{code}\\fR")
+        output.append(desc)
+
+    output.append(".SH SEE ALSO")
+    output.append(".UR https://daemonless.io/guides/dbuild/")
+    output.append("Full web documentation")
+    output.append(".UE")
+
+    return "\n".join(output)
+
+
 def _get_jinja_env(base: Path) -> jinja2.Environment | None:
     """Create Jinja2 environment looking first in .daemonless/templates, then bundled."""
     if jinja2 is None:
@@ -55,6 +166,7 @@ def _get_jinja_env(base: Path) -> jinja2.Environment | None:
 
     return jinja2.Environment(loader=jinja2.ChoiceLoader(loaders))
 
+
 def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict[str, Any]:
     """Build a context dict for templates with enriched env/vol/port data from Config."""
     meta = cfg.metadata
@@ -67,7 +179,9 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
     # Check for AppJail support
     # meta.appjail is None = disabled, {} = bare/default, {...} = custom config
     appjail_meta = meta.appjail if hasattr(meta, "appjail") else None
-    appjail_enabled = appjail_meta is not None or any("io.daemonless.appjail" in a for a in annotations)
+    appjail_enabled = appjail_meta is not None or any(
+        "io.daemonless.appjail" in a for a in annotations
+    )
 
     # Community: Use CLI override, metadata if set (Format: Name:URL), or default to Daemonless Discord.
     community_name = ""
@@ -165,7 +279,6 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
     port_docs = {str(k): v for k, v in docs.get("ports", {}).items()}
     for p in cfg.ports:
         pub = p["published"]
-        tgt = p["target"]
         proto = p["protocol"]
 
         context["ports"].append({
@@ -176,6 +289,7 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
         })
 
     return context
+
 
 def run(cfg: Config, args: argparse.Namespace) -> int:
     """Generate documentation and Containerfiles."""

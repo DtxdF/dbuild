@@ -44,7 +44,7 @@ VALID_CATEGORIES: list[str] = [
 # ── Dataclasses ──────────────────────────────────────────────────────
 
 @dataclass
-class TestConfig:
+class AppTestConfig:
     """CIT test configuration."""
 
     mode: str = ""
@@ -101,7 +101,7 @@ class Config:
     registry: str
     type: str = "app"
     variants: list[Variant] = field(default_factory=list)
-    test: TestConfig | None = None
+    test: AppTestConfig | None = None
     architectures: list[str] = field(default_factory=lambda: ["amd64"])
     metadata: Metadata = field(default_factory=Metadata)
 
@@ -381,7 +381,7 @@ def _parse_metadata(data: dict[str, Any], app_name: str) -> Metadata:
     )
 
 
-def _parse_test_config(data: dict[str, Any], compose_data: dict[str, Any] | None = None) -> TestConfig | None:
+def _parse_test_config(data: dict[str, Any], compose_data: dict[str, Any] | None = None) -> AppTestConfig | None:
     """Parse the ``cit:`` section and merge with compose.yaml metadata."""
     # 1. Start with values from cit: section (legacy/override)
     cit = data.get("cit", {})
@@ -446,7 +446,7 @@ def _parse_test_config(data: dict[str, Any], compose_data: dict[str, Any] | None
     if not mode and not port and not annotations and not cit:
         return None
 
-    return TestConfig(
+    return AppTestConfig(
         mode=mode,
         port=port,
         health=health_path,

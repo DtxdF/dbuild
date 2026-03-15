@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import unittest
 
-from dbuild.config import Config, TestConfig, Variant
+from dbuild.config import AppTestConfig, Config, Variant
 from dbuild.detect import _VM_ARCH_MAP, _build_matrix, _github_extras
 
 
@@ -127,7 +127,7 @@ class TestGithubExtras(unittest.TestCase):
     def test_compose_only_true(self):
         cfg = _cfg(
             variants=[],
-            test=TestConfig(compose=True),
+            test=AppTestConfig(compose=True),
         )
         _, extras = _github_extras([], cfg)
         self.assertEqual(extras["compose_only"], "true")
