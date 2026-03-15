@@ -87,9 +87,10 @@ class Metadata:
     upstream_binary: bool = True
     icon: str = ":material-docker:"
     notes: str = ""
+    community: str = ""
     appjail: dict[str, Any] | None = None
     healthcheck: dict[str, Any] | None = None
-    docs: dict[str, Any] | str = field(default_factory=dict)
+    docs: dict[str, Any] | str = field(default_factory=list)
 
 
 @dataclass
@@ -373,6 +374,7 @@ def _parse_metadata(data: dict[str, Any], app_name: str) -> Metadata:
         upstream_binary=meta.get("upstream_binary", True),
         icon=meta.get("icon", ":material-docker:"),
         notes=meta.get("notes", ""),
+        community=meta.get("community", ""),
         appjail=_parse_appjail(meta),
         healthcheck=meta.get("healthcheck"),
         docs=meta.get("docs", {}),

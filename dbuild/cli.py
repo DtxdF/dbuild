@@ -142,11 +142,16 @@ def _make_parser() -> argparse.ArgumentParser:
     )
 
     # -- generate --
-    sub.add_parser(
+    generate_parser = sub.add_parser(
         "generate",
         aliases=["docs"],
         help="generate README.md and Containerfiles from compose.yaml metadata",
         description="Render documentation and build files using Jinja2 templates.",
+    )
+    generate_parser.add_argument(
+        "--community",
+        metavar="NAME:URL",
+        help="override community help link (e.g. Discord:https://...)",
     )
 
     # -- init --

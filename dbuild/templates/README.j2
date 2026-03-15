@@ -334,7 +334,9 @@ Access the Web UI at: `http://localhost:{{ ports[0].port }}`
 **User:** `{{ user }}` (UID/GID via PUID/PGID, defaults to 1000:1000)
 **Base:** FreeBSD 15.0
 
+{% if community_url %}
 ---
 
-Need help? Join our [Discord](https://discord.gg/Kb9tkhecZT) community.
+Need help? Join our [{{ community_name }}]({{ community_url }}) community.
+{%- endif %}
 {%- endif %}
