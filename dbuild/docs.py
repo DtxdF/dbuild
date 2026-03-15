@@ -175,6 +175,7 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
     # Check for mlock annotation
     annotations = cfg.test.annotations if cfg.test else []
     mlock = any("allow.mlock=true" in a.replace(" ", "") for a in annotations)
+    sysvipc = any("allow.sysvipc=true" in a.replace(" ", "") for a in annotations)
 
     # Check for AppJail support
     # meta.appjail is None = disabled, {} = bare/default, {...} = custom config
@@ -203,6 +204,7 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
         "freshports_url": meta.freshports_url,
         "user": meta.user,
         "mlock": mlock,
+        "sysvipc": sysvipc,
         "annotations": annotations,
         "upstream_binary": meta.upstream_binary,
         "icon": meta.icon,

@@ -3,6 +3,16 @@
 {% block prerequisites %}
 !!! failure "Root Privileges Required"
     **Podman on FreeBSD currently requires root.** All commands must be run as root (or via `doas`/`sudo`).
+{%- if mlock %}
+
+!!! warning ".NET Memory Locking (mlock)"
+    This application requires `--annotation 'org.freebsd.jail.allow.mlock=true'` (Requires [patched ocijail](https://github.com/daemonless/daemonless#ocijail-patch)).
+{%- endif -%}
+{%- if sysvipc %}
+
+!!! warning "System V IPC Required"
+    This application requires `--annotation 'org.freebsd.jail.allow.sysvipc=true'` for shared memory access (Requires [patched ocijail](https://github.com/daemonless/daemonless#ocijail-patch)).
+{%- endif %}
 
 Before deploying, ensure your host environment is ready. See the [Quick Start Guide](../quick-start.md) for host setup instructions.
 {% endblock %}
