@@ -61,15 +61,20 @@ def _make_parser() -> argparse.ArgumentParser:
         default=False,
         help="push images after building (shorthand for build + push)",
     )
+    parser.add_argument(
+        "--generate-manpage",
+        action="store_true",
+        help=argparse.SUPPRESS,  # Hidden from --help
+    )
 
     sub = parser.add_subparsers(dest="command", title="commands")
 
     # Shared options that can appear after the subcommand too.
     # Use SUPPRESS so subcommand defaults don't overwrite global values.
-    variant_kw = dict(metavar="TAG", default=argparse.SUPPRESS,
-                      help="filter to a single variant by tag (e.g. latest, pkg)")
-    arch_kw = dict(metavar="ARCH", default=argparse.SUPPRESS,
-                   help="override target architecture (e.g. amd64, aarch64)")
+    variant_kw = {"metavar": "TAG", "default": argparse.SUPPRESS,
+                  "help": "filter to a single variant by tag (e.g. latest, pkg)"}
+    arch_kw = {"metavar": "ARCH", "default": argparse.SUPPRESS,
+               "help": "override target architecture (e.g. amd64, aarch64)"}
 
     # -- build --
     build_parser = sub.add_parser(
@@ -296,14 +301,9 @@ def _apply_overrides(cfg: Config, args: argparse.Namespace) -> Config:
     return cfg
 
 
-
 def _dispatch_build(cfg: Config, args: argparse.Namespace) -> int:
     """Run the build subcommand, optionally followed by push."""
-    try:
-        from dbuild import build
-    except ImportError:
-        log.error("build module is not yet implemented")
-        return 1
+    from dbuild import build
 
     rc = build.run(cfg, args)
     if rc and rc != 0:
@@ -317,44 +317,28 @@ def _dispatch_build(cfg: Config, args: argparse.Namespace) -> int:
 
 def _dispatch_test(cfg: Config, args: argparse.Namespace) -> int:
     """Run the test subcommand."""
-    try:
-        from dbuild import test
-    except ImportError:
-        log.error("test module is not yet implemented")
-        return 1
+    from dbuild import test
     rc = test.run(cfg, args)
     return rc if rc else 0
 
 
 def _dispatch_push(cfg: Config, args: argparse.Namespace) -> int:
     """Run the push subcommand."""
-    try:
-        from dbuild import push
-    except ImportError:
-        log.error("push module is not yet implemented")
-        return 1
+    from dbuild import push
     rc = push.run(cfg, args)
     return rc if rc else 0
 
 
 def _dispatch_sbom(cfg: Config, args: argparse.Namespace) -> int:
     """Run the sbom subcommand."""
-    try:
-        from dbuild import sbom
-    except ImportError:
-        log.error("sbom module is not yet implemented")
-        return 1
+    from dbuild import sbom
     rc = sbom.run(cfg, args)
     return rc if rc else 0
 
 
 def _dispatch_manifest(cfg: Config, args: argparse.Namespace) -> int:
     """Run the manifest subcommand."""
-    try:
-        from dbuild import manifest
-    except ImportError:
-        log.error("manifest module is not yet implemented")
-        return 1
+    from dbuild import manifest
     rc = manifest.run(cfg, args)
     return rc if rc else 0
 
@@ -427,6 +411,12 @@ def main(argv: list[str] | None = None) -> None:
     """
     parser = _make_parser()
     args = parser.parse_args(argv)
+
+    # Hidden command to generate the ROFF man page
+    if getattr(args, "generate_manpage", False):
+        from dbuild.docs import generate_manpage
+        print(generate_manpage(parser))
+        sys.exit(0)
 
     # Enable verbose logging
     if args.verbose:

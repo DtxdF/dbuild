@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dbuild"
-version = "1.6.1"
 description = "FreeBSD OCI container image build tool"
+dynamic = ["version"]
 requires-python = ">=3.11"
 dependencies = [
     "PyYAML",
@@ -19,6 +19,9 @@ dev = ["pytest>=7", "ruff>=0.9"]
 
 [project.scripts]
 dbuild = "dbuild.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "dbuild.VERSION"}
 
 [tool.setuptools.packages.find]
 include = ["dbuild*"]

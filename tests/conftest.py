@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dbuild.config import Config, TestConfig, Variant
+from dbuild.config import AppTestConfig, Config, Variant
 
 
 @pytest.fixture
@@ -55,8 +55,8 @@ def make_variant(**kwargs) -> Variant:
     return Variant(**defaults)
 
 
-def make_test_config(**kwargs) -> TestConfig:
-    """Factory for TestConfig dataclass with sensible defaults."""
+def make_test_config(**kwargs) -> AppTestConfig:
+    """Factory for AppTestConfig dataclass with sensible defaults."""
     defaults = {
         "mode": "",
         "port": None,
@@ -70,7 +70,7 @@ def make_test_config(**kwargs) -> TestConfig:
         "annotations": [],
     }
     defaults.update(kwargs)
-    return TestConfig(**defaults)
+    return AppTestConfig(**defaults)
 
 
 def make_args(**kwargs) -> argparse.Namespace:
