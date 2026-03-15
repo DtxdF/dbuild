@@ -200,6 +200,11 @@ def _make_parser() -> argparse.ArgumentParser:
         help="comma-separated list of variants to scaffold (default: latest)",
     )
     init_parser.add_argument(
+        "--community",
+        metavar="NAME:URL",
+        help="override community help link (e.g. Discord:https://...)",
+    )
+    init_parser.add_argument(
         "--dry-run",
         action="store_true",
         default=False,
