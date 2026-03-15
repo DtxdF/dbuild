@@ -217,6 +217,7 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
         "architectures": cfg.architectures,
         "appjail": appjail_meta,
         "appjail_enabled": appjail_enabled,
+        "docs": meta.docs,
         "env": [],
         "volumes": [],
         "ports": [],
