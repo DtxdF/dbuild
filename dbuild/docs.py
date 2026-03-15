@@ -55,7 +55,7 @@ def _get_jinja_env(base: Path) -> jinja2.Environment | None:
 
     return jinja2.Environment(loader=jinja2.ChoiceLoader(loaders))
 
-def _enrich_metadata(cfg: Config) -> dict[str, Any]:
+def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict[str, Any]:
     """Build a context dict for templates with enriched env/vol/port data from Config."""
     meta = cfg.metadata
     docs = meta.docs if isinstance(meta.docs, dict) else {}
@@ -68,6 +68,16 @@ def _enrich_metadata(cfg: Config) -> dict[str, Any]:
     # meta.appjail is None = disabled, {} = bare/default, {...} = custom config
     appjail_meta = meta.appjail if hasattr(meta, "appjail") else None
     appjail_enabled = appjail_meta is not None or any("io.daemonless.appjail" in a for a in annotations)
+
+    # Community: Use CLI override, metadata if set (Format: Name:URL), or default to Daemonless Discord.
+    community_name = ""
+    community_url = ""
+    community_raw = community_override or meta.community
+    if not community_raw and "daemonless" in cfg.registry.lower():
+        community_raw = "Discord:https://discord.gg/Kb9tkhecZT"
+
+    if community_raw and ":" in community_raw:
+        community_name, community_url = community_raw.split(":", 1)
 
     context = {
         "name": cfg.image,
@@ -84,6 +94,9 @@ def _enrich_metadata(cfg: Config) -> dict[str, Any]:
         "icon": meta.icon,
         "healthcheck": meta.healthcheck,
         "notes": meta.notes,
+        "community": community_raw,
+        "community_name": community_name,
+        "community_url": community_url,
         "registry": cfg.registry or "ghcr.io/daemonless",
         "repo_url": f"https://github.com/daemonless/{cfg.image}",
         "tags": [v.tag for v in cfg.variants],
@@ -172,7 +185,8 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
         return 1
 
     base = Path.cwd()
-    context = _enrich_metadata(cfg)
+    community_override = getattr(args, "community", None)
+    context = _enrich_metadata(cfg, community_override)
     env = _get_jinja_env(base)
     if not env:
         log.error("Could not find dbuild templates.")
