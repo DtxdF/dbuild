@@ -330,6 +330,7 @@ def run(args: argparse.Namespace) -> int:
             port_meta.get("freshports_url") or
             f"https://www.freshports.org/net-p2p/{app_name}/"
         ),
+        "community":      args.community or "",
         "pkgname":        port_meta.get("pkgname") or app_name,
         "packages":       port_meta.get("packages") or app_name,
         "run_deps":       port_meta.get("run_deps") or app_name,
