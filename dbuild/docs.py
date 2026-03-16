@@ -216,6 +216,10 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
         "registry": cfg.registry or "ghcr.io/daemonless",
         "repo_url": f"https://github.com/daemonless/{cfg.image}",
         "tags": [v.tag for v in cfg.variants],
+        "default_tag": next(
+            (a for v in cfg.variants if v.default for a in ["latest"] if a in v.aliases),
+            cfg.variants[0].tag if cfg.variants else "latest",
+        ),
         "architectures": cfg.architectures,
         "appjail": appjail_meta,
         "appjail_enabled": appjail_enabled,

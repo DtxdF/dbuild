@@ -79,7 +79,7 @@ services:
   {{ name }}:
     name: {{ name | replace("-", "_") }}
     options:
-      - from: {{ reg_var }}/{{ name }}:latest
+      - container: 'boot args:--pull'
 {%- if appjail and appjail.makejail and appjail.makejail.options %}
 {%- for opt in appjail.makejail.options %}
 {%- if opt is mapping %}
@@ -156,7 +156,10 @@ volumes:
 **Makejail**:
 
 ```
-OPTION container=boot args:--pull
+ARG tag={{ default_tag }}
+
+OPTION overwrite=force
+OPTION from={{ reg_var }}/{{ name }}:${tag}
 ```
 {%- endmacro %}
 
