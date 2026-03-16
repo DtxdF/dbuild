@@ -42,10 +42,6 @@ Before deploying, ensure your host environment is ready. See the [Quick Start Gu
     ```yaml
     {{ ansible_snippet(port_var) | indent(4) }}
     ```
-
-{% if ports %}
-Access the Web UI at: `http://localhost:{{ port_var }}`
-{% endif %}
 {% endblock %}
 
 {% block interactive_config %}
