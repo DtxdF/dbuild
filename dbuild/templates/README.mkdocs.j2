@@ -6,12 +6,12 @@
 {%- if mlock %}
 
 !!! warning ".NET Memory Locking (mlock)"
-    This application requires `--annotation 'org.freebsd.jail.allow.mlock=true'` (Requires [patched ocijail](https://github.com/daemonless/daemonless#ocijail-patch)).
+    This application requires `--annotation 'org.freebsd.jail.allow.mlock=true'` (Requires [patched ocijail](/guides/ocijail-patch/)).
 {%- endif -%}
 {%- if sysvipc %}
 
 !!! warning "System V IPC Required"
-    This application requires `--annotation 'org.freebsd.jail.allow.sysvipc=true'` for shared memory access (Requires [patched ocijail](https://github.com/daemonless/daemonless#ocijail-patch)).
+    This application requires `--annotation 'org.freebsd.jail.allow.sysvipc=true'` for shared memory access (Requires [patched ocijail](/guides/ocijail-patch/)).
 {%- endif %}
 
 Before deploying, ensure your host environment is ready. See the [Quick Start Guide](../quick-start.md) for host setup instructions.
