@@ -96,7 +96,7 @@ services:
     oci:
       environment:
 {%- for e in env %}
-        - {{ e.name }}: "!ENV '${ {{ e.name }} }'"
+        - {{ e.name }}: !ENV '${{ '{' }}{{ e.name }}{{ '}' }}'
 {%- endfor %}
 {%- endif %}
 
