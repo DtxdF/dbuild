@@ -1,6 +1,6 @@
 {% extends "README.j2" %}
 
-{% block prerequisites %}
+{% block prerequisites -%}
 !!! failure "Root Privileges Required"
     **Podman on FreeBSD currently requires root.** All commands must be run as root (or via `doas`/`sudo`).
 {%- if mlock %}
@@ -45,6 +45,7 @@ Before deploying, ensure your host environment is ready. See the [Quick Start Gu
 {% endblock %}
 
 {% block interactive_config %}
+
 ### Interactive Configuration
 
 <div class="placeholder-settings-panel"></div>
