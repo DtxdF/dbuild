@@ -172,10 +172,15 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
     meta = cfg.metadata
     docs = meta.docs if isinstance(meta.docs, dict) else {}
 
-    # Check for mlock annotation
+    # Extract jail allow.* parameters from annotations
     annotations = cfg.test.annotations if cfg.test else []
-    mlock = any("allow.mlock=true" in a.replace(" ", "") for a in annotations)
-    sysvipc = any("allow.sysvipc=true" in a.replace(" ", "") for a in annotations)
+    jail_allow = [
+        a.split("=")[0].replace("org.freebsd.jail.", "")
+        for a in annotations
+        if "org.freebsd.jail.allow." in a and "=true" in a.lower()
+    ]
+    mlock = "allow.mlock" in jail_allow
+    sysvipc = "allow.sysvipc" in jail_allow
 
     # Check for AppJail support
     # meta.appjail is None = disabled, {} = bare/default, {...} = custom config
@@ -203,6 +208,7 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
         "web_url": meta.web_url,
         "freshports_url": meta.freshports_url,
         "user": meta.user,
+        "jail_allow": jail_allow,
         "mlock": mlock,
         "sysvipc": sysvipc,
         "annotations": annotations,
