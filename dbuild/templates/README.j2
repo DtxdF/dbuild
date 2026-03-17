@@ -42,9 +42,11 @@ services:
 {%- endif %}
 {%- endfor %}
 {%- endif %}
-{%- if mlock %}
+{%- if jail_allow %}
     annotations:
-      org.freebsd.jail.allow.mlock: "true"
+{%- for opt in jail_allow %}
+      org.freebsd.jail.{{ opt }}: "true"
+{%- endfor %}
 {%- endif %}
 {%- if healthcheck %}
     healthcheck:
@@ -161,6 +163,9 @@ ARG tag={{ default_tag }}
 
 OPTION overwrite=force
 OPTION from={{ reg_var }}/{{ name }}:${tag}
+{%- for opt in jail_allow %}
+SET {{ opt }}=1
+{%- endfor %}
 ```
 {%- endmacro %}
 
@@ -173,9 +178,9 @@ podman run -d --name {{ name }} \
   -p {{ p.port }}:{{ p.port }} \
 {%- endif %}
 {%- endfor %}
-{%- if mlock %}
-  --annotation 'org.freebsd.jail.allow.mlock=true' \
-{%- endif %}
+{%- for opt in jail_allow %}
+  --annotation 'org.freebsd.jail.{{ opt }}=true' \
+{%- endfor %}
 {%- if healthcheck %}
   --health-cmd {{ healthcheck }} \
 {%- endif %}
@@ -217,9 +222,11 @@ podman run -d --name {{ name }} \
       - "{% if v.root_var %}{{ cfg_root }}/{% else %}/path/to/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
 {%- endfor %}
 {%- endif %}
-{%- if mlock %}
+{%- if jail_allow %}
     annotation:
-      org.freebsd.jail.allow.mlock: "true"
+{%- for opt in jail_allow %}
+      org.freebsd.jail.{{ opt }}: "true"
+{%- endfor %}
 {%- endif %}
 {%- endmacro -%}
 
