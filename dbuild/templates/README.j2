@@ -261,10 +261,33 @@ Source: dbuild templates
 
 | Tag | Description | Best For |
 | :--- | :--- | :--- |
+{%- if variants | length > 1 %}
+{%- for v in variants %}
+{%- set all_tags = ([v.tag] + v.aliases) | sort %}
+{%- set tag_str = all_tags | join('` / `') %}
+{%- set base_ver = v.args.get('BASE_VERSION', '') %}
+{%- set is_pkg = 'pkg' in v.containerfile %}
+{%- if base_ver.endswith('-latest') %}
+{%- set src_desc = "**FreeBSD Latest**. Rolling package updates." %}
+{%- set best_for = "Newest FreeBSD packages." %}
+{%- elif is_pkg %}
+{%- set src_desc = "**FreeBSD Quarterly**. Uses stable, tested packages." %}
+{%- set best_for = "Most users. Matches Linux Docker behavior." if v.default else "Production stability." %}
+{%- elif upstream_binary %}
+{%- set src_desc = "**Upstream Binary**. Built from official release." %}
+{%- set best_for = "Most users. Matches Linux Docker behavior." if v.default else "Alternative build." %}
+{%- else %}
+{%- set src_desc = "**FreeBSD Port**. Built from FreeBSD packages." %}
+{%- set best_for = "Most users. Matches Linux Docker behavior." if v.default else "Production stability." %}
+{%- endif %}
+| `{{ tag_str }}` | {{ src_desc }} | {{ best_for }} |
+{%- endfor %}
+{%- else %}
 | `latest` | {% if upstream_binary %}**Upstream Binary**. Built from official release.{% else %}**FreeBSD Port**. Built from latest FreeBSD packages.{% endif %} | Most users. Matches Linux Docker behavior. |
 {%- if tags and 'pkg' in tags %}
 | `pkg` | **FreeBSD Quarterly**. Uses stable, tested packages. | Production stability. |
 | `pkg-latest` | **FreeBSD Latest**. Rolling package updates. | Newest FreeBSD features. |
+{%- endif %}
 {%- endif %}
 {%- endblock %}
 

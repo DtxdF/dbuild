@@ -221,7 +221,17 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
         "community_url": community_url,
         "registry": cfg.registry or "ghcr.io/daemonless",
         "repo_url": f"https://github.com/daemonless/{cfg.image}",
-        "tags": [v.tag for v in cfg.variants],
+        "tags": [v.tag for v in cfg.variants] + [a for v in cfg.variants for a in (v.aliases or [])],
+        "variants": [
+            {
+                "tag": v.tag,
+                "aliases": v.aliases or [],
+                "default": v.default,
+                "args": v.args or {},
+                "containerfile": v.containerfile or "Containerfile",
+            }
+            for v in cfg.variants
+        ],
         "default_tag": next(
             (a for v in cfg.variants if v.default for a in ["latest"] if a in v.aliases),
             cfg.variants[0].tag if cfg.variants else "latest",
