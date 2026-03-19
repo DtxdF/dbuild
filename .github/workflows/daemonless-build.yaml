@@ -122,7 +122,7 @@ jobs:
             pkg install -y podman ${{ env.COMPOSE_PACKAGES }} jq skopeo buildah trivy python3 py311-pyyaml
 
             # Install patched ocijail for .NET apps (mlock support)
-            fetch -qo /tmp/ocijail.pkg "https://github.com/daemonless/freebsd-ports/releases/download/v0.4.0-patched/ocijail-0.4.0_2-${{ matrix.arch }}.pkg"
+            fetch -qo /tmp/ocijail.pkg "https://github.com/daemonless/freebsd-ports/releases/download/v0.4.0-patched/ocijail-0.4.0_3-${{ matrix.arch }}.pkg"
             pkg install -fy /tmp/ocijail.pkg
 
             rm -rf /var/db/containers /var/lib/containers 2>/dev/null || true
@@ -324,7 +324,7 @@ jobs:
             pkg install -y podman ${{ env.COMPOSE_PACKAGES }} jq python3 py311-pyyaml
 
             # Install patched ocijail for .NET apps (mlock support)
-            fetch -qo /tmp/ocijail.pkg "https://github.com/daemonless/freebsd-ports/releases/download/v0.4.0-patched/ocijail-0.4.0_2-amd64.pkg"
+            fetch -qo /tmp/ocijail.pkg "https://github.com/daemonless/freebsd-ports/releases/download/v0.4.0-patched/ocijail-0.4.0_3-amd64.pkg"
             pkg install -fy /tmp/ocijail.pkg
 
             rm -rf /var/db/containers /var/lib/containers 2>/dev/null || true

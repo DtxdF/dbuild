@@ -22,7 +22,7 @@ from dbuild.ci.local import LocalCI
 
 _OCIJAIL_URL_TEMPLATE = (
     "https://github.com/daemonless/freebsd-ports/releases/download/"
-    "v0.4.0-patched/ocijail-0.4.0_2-{arch}.pkg"
+    "v0.4.0-patched/ocijail-0.4.0_3-{arch}.pkg"
 )
 
 _PKG_LIST = [
