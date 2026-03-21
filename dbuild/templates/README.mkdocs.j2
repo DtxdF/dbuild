@@ -1,5 +1,32 @@
 {% extends "README.j2" %}
 
+{% block deprecation_notice -%}
+{%- if deprecated %}
+!!! danger "Deprecated"
+    This image is no longer actively maintained or built.
+{%- if deprecated.reason %}
+
+    **Reason:** {{ deprecated.reason }}
+{%- endif %}
+{%- if deprecated.sunset_date %}
+
+    **Sunset date:** {{ deprecated.sunset_date }}
+{%- endif %}
+{%- if deprecated.migration_guide %}
+
+    **Migration:**
+
+    {{ deprecated.migration_guide | indent(4) }}
+{%- endif %}
+
+{%- if deprecated.replacement %}
+!!! tip "Use [{{ deprecated.replacement }}]({{ deprecated.replacement }}.md) instead"
+    Migrate to **[{{ deprecated.replacement }}]({{ deprecated.replacement }}.md)**, which replaces this image.
+
+{% endif -%}
+{% endif -%}
+{%- endblock %}
+
 {% block prerequisites -%}
 !!! failure "Root Privileges Required"
     **Podman on FreeBSD currently requires root.** All commands must be run as root (or via `doas`/`sudo`).

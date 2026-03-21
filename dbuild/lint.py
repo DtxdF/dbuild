@@ -63,11 +63,29 @@ def lint_repo(repo_path: Path, verbose: bool = False) -> tuple[list[str], list[s
         if not meta:
             errors.append("Missing x-daemonless metadata block in compose.yaml")
         else:
+            is_deprecated = "deprecated" in meta
+
             if verbose:
                 print("  checking x-daemonless fields")
+            # Fields that become optional (warnings only) for deprecated images
+            OPTIONAL_WHEN_DEPRECATED = {"upstream_url", "description"}
+
             for field in REQUIRED_X_DAEMONLESS_FIELDS:
                 if field not in meta or not meta[field]:
-                    errors.append(f"Missing required field: x-daemonless.{field}")
+                    if is_deprecated and field in OPTIONAL_WHEN_DEPRECATED:
+                        warnings.append(
+                            f"Missing x-daemonless.{field}"
+                            f" (optional for deprecated images)"
+                        )
+                    else:
+                        errors.append(f"Missing required field: x-daemonless.{field}")
+
+            description = meta.get("description", "")
+            if "deprecated" in description.lower():
+                warnings.append(
+                    "x-daemonless.description contains the word 'deprecated'."
+                    " Use the structured x-daemonless.deprecated block instead."
+                )
 
             if verbose:
                 print("  checking category")

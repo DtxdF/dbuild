@@ -13,9 +13,11 @@ try:
 except ImportError:
     jinja2 = None
 
+import dataclasses
+
 import dbuild
 from dbuild import log
-from dbuild.config import Config
+from dbuild.config import AppTestConfig, Config, DeprecationInfo, Metadata, Variant
 
 # Constants for placeholder generation
 CONFIG_ROOT_VAR = "@CONTAINER_CONFIG_ROOT@"
@@ -35,6 +37,37 @@ Source: dbuild templates
 -->
 
 """
+
+
+# ── Documentation helpers ─────────────────────────────────────────────
+
+def _fields_for_docs(cls) -> list[tuple[str, str, str]]:
+    """Extract (field, display_default, description) from a dataclass.
+
+    Only fields with a ``desc`` key in their metadata are included,
+    allowing internal fields to be silently skipped.
+    """
+    result = []
+    for f in dataclasses.fields(cls):
+        desc = f.metadata.get("desc", "")
+        if not desc:
+            continue
+        if "display_default" in f.metadata:
+            default = f.metadata["display_default"]
+        elif f.default is not dataclasses.MISSING:
+            val = f.default
+            if val is None:
+                default = "None"
+            elif isinstance(val, bool):
+                default = str(val).lower()
+            elif isinstance(val, str):
+                default = f'"{val}"' if val else '""'
+            else:
+                default = str(val)
+        else:
+            default = "(required)"
+        result.append((f.name, default, desc))
+    return result
 
 
 # ── Extended Documentation Content ────────────────────────────────────
@@ -70,6 +103,16 @@ DOCS_CONTENT = {
         "1": "Build, test, or system failure.",
         "2": "Command-line usage error (invalid flags or arguments).",
     },
+    "METADATA_FIELDS": _fields_for_docs(Metadata),
+    "BUILD_FIELDS": [
+        # No BuildConfig dataclass yet — these are parsed from a raw dict in load().
+        ("pkg_name",      "None",        "Default FreeBSD package name for version extraction across all variants"),
+        ("auto_version",  "false",       "Automatically extract the installed package version and tag the image with it"),
+        ("architectures", '["amd64"]',   'List of architectures to build (e.g. `["amd64", "arm64"]`)'),
+    ],
+    "VARIANT_FIELDS":     _fields_for_docs(Variant),
+    "CIT_FIELDS":         _fields_for_docs(AppTestConfig),
+    "DEPRECATION_FIELDS": _fields_for_docs(DeprecationInfo),
 }
 
 
@@ -240,6 +283,7 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
         "appjail": appjail_meta,
         "appjail_enabled": appjail_enabled,
         "docs": meta.docs,
+        "deprecated": meta.deprecated,
         "env": [],
         "volumes": [],
         "ports": [],
@@ -324,6 +368,14 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
     base = Path.cwd()
     community_override = getattr(args, "community", None)
     context = _enrich_metadata(cfg, community_override)
+
+    if cfg.metadata.deprecated is not None:
+        dep = cfg.metadata.deprecated
+        msg = f"Image '{cfg.image}' is deprecated"
+        if dep.replacement:
+            msg += f" — suggested replacement: {dep.replacement}"
+        log.warn(msg)
+
     env = _get_jinja_env(base)
     if not env:
         log.error("Could not find dbuild templates.")

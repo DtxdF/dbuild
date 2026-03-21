@@ -44,19 +44,56 @@ VALID_CATEGORIES: list[str] = [
 # ── Dataclasses ──────────────────────────────────────────────────────
 
 @dataclass
+class DeprecationInfo:
+    """Structured deprecation metadata for an image."""
+
+    reason: str = field(default="", metadata={
+        "desc": "Human-readable explanation of why the image is deprecated",
+    })
+    replacement: str = field(default="", metadata={
+        "desc": "Name of the image that replaces this one (e.g. `seerr`). Used to generate a prominent migration callout.",
+    })
+    sunset_date: str = field(default="", metadata={
+        "desc": "Date after which the image will no longer be available (e.g. `2026-06-01`)",
+    })
+    migration_guide: str = field(default="", metadata={
+        "desc": "Free-form Markdown with migration steps shown alongside the deprecation notice",
+    })
+
+
+@dataclass
 class AppTestConfig:
     """CIT test configuration."""
 
-    mode: str = ""
-    port: int | None = None
-    health: str | None = None
-    wait: int = 120
-    ready: str | None = None
-    screenshot_wait: int | None = None
+    mode: str = field(default="", metadata={
+        "desc": "Test mode: `shell`, `port`, `health`, or `screenshot`. Auto-detected if omitted.",
+        "display_default": "(auto)",
+    })
+    port: int | None = field(default=None, metadata={
+        "desc": "TCP port the service listens on",
+    })
+    health: str | None = field(default=None, metadata={
+        "desc": "HTTP path for the health check endpoint (e.g. `/ping`, `/api/health`)",
+    })
+    wait: int = field(default=120, metadata={
+        "desc": "Max seconds to wait for the container to be ready",
+    })
+    ready: str | None = field(default=None, metadata={
+        "desc": "String to watch for in container logs before starting tests — avoids fixed sleep delays",
+    })
+    screenshot_wait: int | None = field(default=None, metadata={
+        "desc": "Extra seconds to wait after health passes before capturing the screenshot",
+    })
     screenshot_path: str | None = None
-    ssim_threshold: float | None = None
-    https: bool = False
-    compose: bool = False
+    ssim_threshold: float | None = field(default=None, metadata={
+        "desc": "Override the SSIM similarity threshold for screenshot comparison (0.0-1.0)",
+    })
+    https: bool = field(default=False, metadata={
+        "desc": "Use HTTPS for health and screenshot checks",
+    })
+    compose: bool = field(default=False, metadata={
+        "desc": "Start the service via `compose.yaml` instead of `podman run`",
+    })
     annotations: list[str] = field(default_factory=list)
 
 
@@ -64,33 +101,93 @@ class AppTestConfig:
 class Variant:
     """A single build variant (e.g. :latest, :pkg, :15-quarterly)."""
 
-    tag: str
-    containerfile: str = "Containerfile"
-    args: dict[str, str] = field(default_factory=dict)
-    aliases: list[str] = field(default_factory=list)
-    auto_version: bool = False
-    default: bool = False
-    pkg_name: str | None = None
+    tag: str = field(metadata={
+        "desc": "Image tag to push (e.g. `latest`, `18`, `pkg`)",
+        "display_default": "(required)",
+    })
+    containerfile: str = field(default="Containerfile", metadata={
+        "desc": "Containerfile to build",
+    })
+    args: dict[str, str] = field(default_factory=dict, metadata={
+        "desc": "Build arguments passed as `--build-arg` to the Containerfile",
+        "display_default": "{}",
+    })
+    aliases: list[str] = field(default_factory=list, metadata={
+        "desc": 'Additional tags to push alongside this variant (e.g. `["18-pkg", "pkg", "latest"]`)',
+        "display_default": "[]",
+    })
+    auto_version: bool = field(default=False, metadata={
+        "desc": "Override the top-level `build.auto_version` for this variant",
+    })
+    default: bool = field(default=False, metadata={
+        "desc": "Mark as the default variant for `dbuild test` when no `--variant` is given",
+    })
+    pkg_name: str | None = field(default=None, metadata={
+        "desc": "Override the top-level `build.pkg_name` for this variant",
+    })
 
 
 @dataclass
 class Metadata:
     """Rich metadata for documentation and discovery (from x-daemonless)."""
 
-    title: str = ""
-    description: str = ""
-    category: str = "Apps"
-    upstream_url: str = ""
-    web_url: str = ""
-    freshports_url: str = ""
-    user: str = "bsd"
-    upstream_binary: bool = True
-    icon: str = ":material-docker:"
-    notes: str = ""
-    community: str = ""
-    appjail: dict[str, Any] | None = None
-    healthcheck: dict[str, Any] | None = None
-    docs: dict[str, Any] | str = field(default_factory=list)
+    title: str = field(default="", metadata={
+        "desc": "Human-readable application title",
+        "display_default": "(dir name)",
+    })
+    description: str = field(default="", metadata={
+        "desc": "Short description of the application",
+    })
+    category: str = field(default="Apps", metadata={
+        "desc": (
+            "Application category. Valid values: "
+            + ", ".join(VALID_CATEGORIES)
+        ),
+    })
+    upstream_url: str = field(default="", metadata={
+        "desc": "URL to the upstream source repository",
+    })
+    web_url: str = field(default="", metadata={
+        "desc": "URL to the official project website",
+    })
+    freshports_url: str = field(default="", metadata={
+        "desc": "URL to the FreeBSD port on freshports.org (pkg-based images)",
+    })
+    user: str = field(default="bsd", metadata={
+        "desc": "Internal container user (docs only)",
+    })
+    upstream_binary: bool = field(default=True, metadata={
+        "desc": (
+            "`true` if `:latest` is built from an upstream release binary; "
+            "`false` if built from FreeBSD ports/packages. "
+            "Controls the tag description in generated READMEs."
+        ),
+    })
+    icon: str = field(default=":material-docker:", metadata={
+        "desc": "Material or SimpleIcon identifier (e.g. `:simple-postgresql:`)",
+    })
+    notes: str = field(default="", metadata={
+        "desc": (
+            "Free-form Markdown shown in the generated README as a Notes section. "
+            "Useful for documenting jail requirements like `allow.sysvipc`."
+        ),
+    })
+    community: str = field(default="", metadata={
+        "desc": "Help link in `Name:URL` format (e.g. `Discord:https://...`)",
+    })
+    appjail: dict[str, Any] | None = field(default=None, metadata={
+        "desc": "Enable AppJail documentation. Bare key or `true` uses defaults; pass a dict for custom config.",
+    })
+    healthcheck: dict[str, Any] | None = field(default=None, metadata={
+        "desc": "Docker-style healthcheck definition, used as the CIT health URL if `cit.health` is not set.",
+    })
+    docs: dict[str, Any] | str = field(default_factory=list, metadata={
+        "desc": "Structured env/volumes/ports documentation. Used to generate README reference tables (see docs: sub-keys below).",
+        "display_default": "{}",
+    })
+    deprecated: DeprecationInfo | None = field(default=None, metadata={
+        "desc": "Mark this image as deprecated. Bare key disables builds; pass a dict with `reason`, `replacement`, `sunset_date`, and/or `migration_guide` for structured messaging.",
+    })
 
 
 @dataclass
@@ -344,6 +441,7 @@ def _parse_service_data(
 
 
 _APPJAIL_ABSENT = object()
+_DEPRECATED_ABSENT = object()
 
 
 def _parse_appjail(meta: dict[str, Any]) -> dict[str, Any] | None:
@@ -359,6 +457,28 @@ def _parse_appjail(meta: dict[str, Any]) -> dict[str, Any] | None:
     if raw is None or raw is True or raw == {}:
         return {}
     return raw
+
+
+def _parse_deprecated(meta: dict[str, Any]) -> DeprecationInfo | None:
+    """Parse the ``deprecated:`` key from x-daemonless metadata.
+
+    - Key absent → None (not deprecated)
+    - ``deprecated:`` (bare/null) or ``deprecated: true`` → DeprecationInfo() (no details)
+    - ``deprecated: {reason: ..., replacement: ...}`` → DeprecationInfo with details
+    """
+    raw = meta.get("deprecated", _DEPRECATED_ABSENT)
+    if raw is _DEPRECATED_ABSENT:
+        return None
+    if raw is None or raw is True or raw == {}:
+        return DeprecationInfo()
+    if isinstance(raw, dict):
+        return DeprecationInfo(
+            reason=raw.get("reason", ""),
+            replacement=raw.get("replacement", ""),
+            sunset_date=str(raw.get("sunset_date", "")),
+            migration_guide=raw.get("migration_guide", ""),
+        )
+    return DeprecationInfo()
 
 
 def _parse_metadata(data: dict[str, Any], app_name: str) -> Metadata:
@@ -379,6 +499,7 @@ def _parse_metadata(data: dict[str, Any], app_name: str) -> Metadata:
         appjail=_parse_appjail(meta),
         healthcheck=meta.get("healthcheck"),
         docs=meta.get("docs", {}),
+        deprecated=_parse_deprecated(meta),
     )
 
 
