@@ -1,7 +1,7 @@
 PREFIX?=	/usr/local
 SHAREDIR=	${PREFIX}/share/dbuild
 BINDIR=		${PREFIX}/bin
-MANDIR=		${PREFIX}/man/man1
+MANDIR=		${PREFIX}/share/man/man1
 
 PYTHON?=	python3
 RUFF?=		ruff

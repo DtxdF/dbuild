@@ -34,6 +34,11 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
 
     Returns ``0`` on success, non-zero on failure.
     """
+    # Skip deprecated images — no build, no push, no SBOM
+    if cfg.metadata.deprecated is not None:
+        log.warn("Image is deprecated — skipping CI pipeline")
+        return 0
+
     # Optional: run ci-prepare first
     if getattr(args, "prepare", False):
         rc = prepare.run(args)
