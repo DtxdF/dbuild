@@ -59,6 +59,9 @@ class DeprecationInfo:
     migration_guide: str = field(default="", metadata={
         "desc": "Free-form Markdown with migration steps shown alongside the deprecation notice",
     })
+    successor: str = field(default="", metadata={
+        "desc": "Full URL of the successor image (e.g. `https://daemonless.io/images/grimmory`). Used to generate a migration callout.",
+    })
 
 
 @dataclass
@@ -477,6 +480,7 @@ def _parse_deprecated(meta: dict[str, Any]) -> DeprecationInfo | None:
             replacement=raw.get("replacement", ""),
             sunset_date=str(raw.get("sunset_date", "")),
             migration_guide=raw.get("migration_guide", ""),
+            successor=raw.get("successor", ""),
         )
     return DeprecationInfo()
 
