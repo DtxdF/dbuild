@@ -2,7 +2,7 @@ name: {{ name }}
 
 x-daemonless:
   title: "{{ title }}"
-  icon: ":material-apps:"
+  icon: ":material-apps:"  # https://pictogrammers.com/library/mdi/ (material-) or https://simpleicons.org/ (simple-)
   category: "{{ category }}"
   description: "{{ description }}"
   upstream_url: "{{ upstream_url }}"
