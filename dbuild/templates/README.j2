@@ -256,6 +256,10 @@ podman run -d --name {{ name }} \
 > [!TIP]
 > **Use [{{ deprecated.replacement }}](https://github.com/daemonless/{{ deprecated.replacement }}) instead.**
 {%- endif %}
+{%- if deprecated.successor %}
+
+> **Successor:** [{{ deprecated.successor }}]({{ deprecated.successor }})
+{%- endif %}
 
 {% endif -%}
 {%- endblock -%}
