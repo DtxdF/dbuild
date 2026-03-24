@@ -10,9 +10,14 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+import threading
 from typing import Any
 
 from dbuild import log
+
+# Global lock for interleaved parallel output
+_print_lock = threading.Lock()
 
 
 class PodmanError(Exception):
@@ -84,10 +89,13 @@ def build(
     context_dir: str = ".",
     network: str = "host",
     extra_args: list[str] | None = None,
+    prefix: str | None = None,
 ) -> str:
     """Run ``podman build`` and return the image ID.
 
     Build output is streamed to the terminal so the user can follow progress.
+    Pass ``prefix`` (e.g. ``"[latest] "``) to enable prefixed line-by-line
+    output suitable for parallel builds.
     """
     cmd = [
         "podman", "build",
@@ -103,8 +111,28 @@ def build(
         cmd += extra_args
     cmd.append(context_dir)
 
-    # Stream output so the user sees build progress
-    _run(cmd, capture=False)
+    if prefix is None:
+        # Sequential mode: stream directly to terminal
+        _run(cmd, capture=False)
+    else:
+        # Parallel mode: prefix each line and write with a lock
+        full_cmd = _priv_prefix() + cmd
+        with _print_lock:
+            log.info(f"$ {' '.join(full_cmd)}")
+        proc = subprocess.Popen(
+            full_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            with _print_lock:
+                sys.stdout.write(f"{prefix}{line}")
+                sys.stdout.flush()
+        proc.wait()
+        if proc.returncode != 0:
+            raise PodmanError(full_cmd, proc.returncode, "")
     return tag
 
 

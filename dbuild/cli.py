@@ -84,6 +84,15 @@ def _make_parser() -> argparse.ArgumentParser:
     )
     build_parser.add_argument("--variant", **variant_kw)
     build_parser.add_argument("--arch", **arch_kw)
+    build_parser.add_argument(
+        "-p", "--parallel",
+        metavar="N",
+        nargs="?",
+        const=0,
+        type=int,
+        default=None,
+        help="build variants in parallel; optionally limit to N concurrent builds",
+    )
 
     # -- test --
     test_parser = sub.add_parser(

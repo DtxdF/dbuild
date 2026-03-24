@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dbuild import labels, log, podman, version
 from dbuild.config import Config, Variant
@@ -54,6 +55,8 @@ def _build_variant(
     cfg: Config,
     variant: Variant,
     arch: str,
+    *,
+    prefix: str | None = None,
 ) -> str:
     """Build one variant for one architecture.  Returns the build tag."""
     freebsd_arch = _map_arch(arch)
@@ -87,6 +90,7 @@ def _build_variant(
         tag=full_build_ref,
         build_args=build_args,
         secrets=secrets,
+        prefix=prefix,
     )
     log.timer_stop(f"build:{variant.tag}")
 
@@ -121,8 +125,9 @@ def run(cfg: Config, args: argparse.Namespace) -> None:
     args:
         CLI arguments.  Recognised attributes:
 
-        * ``variant`` -- build only this tag (optional).
-        * ``arch``    -- target architecture override (optional).
+        * ``variant``  -- build only this tag (optional).
+        * ``arch``     -- target architecture override (optional).
+        * ``parallel`` -- max concurrent builds; None means sequential.
     """
     if cfg.type == "stack":
         log.info("type: stack — nothing to build")
@@ -130,17 +135,43 @@ def run(cfg: Config, args: argparse.Namespace) -> None:
 
     variant_filter: str | None = getattr(args, "variant", None)
     arch: str = getattr(args, "arch", None) or cfg.architectures[0]
+    parallel: int | None = getattr(args, "parallel", None)
 
-    built: list[str] = []
-    for variant in cfg.variants:
-        if variant_filter and variant.tag != variant_filter:
-            continue
-        ref = _build_variant(cfg, variant, arch)
-        built.append(ref)
+    variants = [
+        v for v in cfg.variants
+        if not variant_filter or v.tag == variant_filter
+    ]
 
-    if not built:
+    if not variants:
         log.warn("No variants matched the filter")
         return
+
+    built: list[str] = []
+
+    if parallel is not None and len(variants) > 1:
+        workers = parallel if parallel > 0 else len(variants)
+        # Pad tag labels to the same width for aligned output
+        max_tag_len = max(len(v.tag) for v in variants)
+        log.step(f"Building {len(variants)} variants in parallel (workers={workers})")
+
+        futures = {}
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            for variant in variants:
+                prefix = f"[{variant.tag:<{max_tag_len}}] "
+                futures[executor.submit(_build_variant, cfg, variant, arch, prefix=prefix)] = variant.tag
+
+            for future in as_completed(futures):
+                tag = futures[future]
+                try:
+                    ref = future.result()
+                    built.append(ref)
+                except Exception as exc:
+                    log.error(f":{tag} failed: {exc}")
+                    raise
+    else:
+        for variant in variants:
+            ref = _build_variant(cfg, variant, arch)
+            built.append(ref)
 
     log.step("Build summary")
     for ref in built:
