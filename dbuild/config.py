@@ -251,7 +251,7 @@ def _git_remote_org() -> str | None:
     import subprocess
     try:
         result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
+            ["git", "-c", "safe.directory=*", "remote", "get-url", "origin"],
             capture_output=True, text=True, check=False,
         )
         if result.returncode != 0:

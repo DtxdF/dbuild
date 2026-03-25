@@ -1,4 +1,4 @@
-.TH DBUILD 1 "2026-03-24" "dbuild 1.7.0" "User Commands"
+.TH DBUILD 1 "2026-03-25" "dbuild 1.7.0" "User Commands"
 .SH NAME
 dbuild \- FreeBSD OCI container image build tool
 .SH SYNOPSIS
@@ -205,6 +205,9 @@ filter to a single variant by tag (e.g. latest, pkg)
 .TP
 \fB--json\fR
 write test result JSON to FILE
+.TP
+\fB--backend\fR
+which backend(s) to test with: podman, appjail, or all (default: all)
 .RE
 .SH ENVIRONMENT
 .TP

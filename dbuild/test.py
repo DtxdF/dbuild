@@ -29,22 +29,22 @@ from pathlib import Path
 
 from dbuild import log, podman
 from dbuild.config import AppTestConfig, Config, Variant
+from dbuild.container_backend import AppJailBackend, ContainerBackend, PodmanBackend
 
 # ── Cleanup registry (survives SIGTERM) ───────────────────────────────
 
-_cleanup_targets: list[tuple[str | None, str | None]] = []
-"""Stack of (compose_file, container_name) to clean up on exit."""
+_cleanup_targets: list[tuple[str | None, ContainerBackend | None, str | None]] = []
+"""Stack of (compose_file, backend, cname) to clean up on exit."""
 
 
 def _emergency_cleanup(*_args) -> None:
     """Remove all registered containers/stacks, then exit."""
-    for compose_file, container_name in _cleanup_targets:
+    for compose_file, backend, cname in _cleanup_targets:
         try:
             if compose_file:
                 podman.compose_down(compose_file)
-            elif container_name:
-                podman.stop(container_name)
-                podman.rm(container_name)
+            elif backend and cname:
+                backend.stop(cname)
         except Exception:
             pass
     _cleanup_targets.clear()
@@ -213,9 +213,11 @@ def _resolve_mode(
 # ── Ready-pattern log waiting ────────────────────────────────────────
 
 def _wait_for_ready(
-    container: str,
+    cname: str,
     patterns: str,
     timeout: int,
+    *,
+    backend: ContainerBackend,
 ) -> bool:
     """Poll container logs for ready patterns.
 
@@ -226,15 +228,13 @@ def _wait_for_ready(
     poll_interval = 3
     elapsed = 0
     while elapsed < timeout:
-        if not podman.container_running(container, quiet=True):
+        if not backend.running(cname, quiet=True):
             log.error("Container exited during ready wait")
-            output = podman.logs(container)
-            for line in output.splitlines()[-20:]:
+            for line in backend.logs(cname).splitlines()[-20:]:
                 log.info(f"  {line}")
             return False
 
-        output = podman.logs(container, quiet=True)
-        if compiled.search(output):
+        if compiled.search(backend.logs(cname, quiet=True)):
             log.info(f"Ready signal after {elapsed}s")
             time.sleep(2)
             return True
@@ -248,17 +248,17 @@ def _wait_for_ready(
 
 # ── Individual test implementations ──────────────────────────────────
 
-def _test_shell(container: str) -> bool:
+def _test_shell(cname: str, *, backend: ContainerBackend) -> bool:
     """Verify the container is running and we can exec into it."""
     time.sleep(2)
-    if not podman.container_running(container):
+
+    if not backend.running(cname):
         log.error("Container exited immediately")
-        output = podman.logs(container)
-        for line in output.splitlines()[-20:]:
+        for line in backend.logs(cname).splitlines()[-20:]:
             log.info(f"  {line}")
         return False
 
-    result = podman.exec_in(container, ["/bin/sh", "-c", "echo ok"])
+    result = backend.exec_in(cname, ["/bin/sh", "-c", "echo ok"])
     if result.returncode != 0:
         log.error("Cannot exec into container")
         return False
@@ -433,6 +433,8 @@ def _test_variant(
     test: AppTestConfig,
     *,
     json_output: str | None = None,
+    force_backend: str = "auto",
+    out: dict | None = None,
 ) -> int:
     """Run CIT against one variant.  Returns 0 on success, 1 on failure."""
     build_ref = f"{cfg.full_image}:build-{variant.tag}"
@@ -442,9 +444,9 @@ def _test_variant(
     log.info(f"Image: {build_ref}")
 
     # -- Merge config: labels + config overrides --
-    compose_mode = test.compose
+    # AppJail backend bypasses compose — it uses Director instead
+    compose_mode = test.compose and force_backend != "appjail"
     compose_file: Path | None = None
-    container_name = f"cit-{int(time.time())}-{os.getpid()}"
 
     if compose_mode:
         if not shutil.which("podman-compose"):
@@ -484,6 +486,8 @@ def _test_variant(
     mode = _resolve_mode(
         test.mode, port=port, health=health, baseline=baseline,
     )
+    if out is not None:
+        out["mode"] = mode
     log.info(f"Mode: {mode}")
 
     # Fill in defaults for modes that need port/health
@@ -510,10 +514,24 @@ def _test_variant(
     }
     rc = 1  # assume failure; set to 0 on success
 
+    # -- Select backend --
+    if force_backend == "appjail":
+        if not AppJailBackend.available():
+            log.error("--backend appjail requested but appjail is not installed")
+            return 1
+        backend: ContainerBackend = AppJailBackend()
+    elif force_backend == "podman":
+        backend = PodmanBackend()
+    else:  # auto
+        backend = AppJailBackend() if (cfg.metadata.appjail is not None and AppJailBackend.available()) else PodmanBackend()
+
+    cname = f"cit-{os.getpid()}-{cfg.image}"
+
     # -- Register for cleanup (survives SIGTERM) --
-    cleanup_entry = (
+    cleanup_entry: tuple[str | None, ContainerBackend | None, str | None] = (
         str(compose_file) if compose_mode and compose_file else None,
-        container_name if not compose_mode else None,
+        None if compose_mode else backend,
+        None if compose_mode else cname,
     )
     _cleanup_targets.append(cleanup_entry)
 
@@ -524,17 +542,12 @@ def _test_variant(
             podman.compose_up(str(compose_file))
             ip = "127.0.0.1"
         else:
-            cid = podman.run_detached(
-                build_ref,
-                name=container_name,
-                annotations=annotations,
-            )
-            log.info(f"Started: {cid}")
-            ip = ""  # resolved later
+            backend.start(cname, build_ref, annotations=annotations)
+            ip = ""  # resolved after shell test
 
         # === SHELL TEST ===
         if not compose_mode:
-            if not _test_shell(container_name):
+            if not _test_shell(cname, backend=backend):
                 results["shell"] = "fail"
                 return 1
             results["shell"] = "pass"
@@ -544,9 +557,9 @@ def _test_variant(
                 rc = 0
                 return 0
 
-        # Get container IP
+        # Get IP
         if not compose_mode:
-            ip = podman.inspect_ip(container_name)
+            ip = backend.get_ip(cname)
             if not ip:
                 log.error("Could not get container IP")
                 return 1
@@ -554,17 +567,17 @@ def _test_variant(
 
         # Wait for ready signal (health/screenshot only — port test has its own poll)
         if not compose_mode and mode in ("health", "screenshot"):
-            _wait_for_ready(container_name, ready_patterns, test.wait)
+            _wait_for_ready(cname, ready_patterns, test.wait, backend=backend)
 
         # === PORT TEST ===
         assert port is not None
         if not _test_port(ip, port, test.wait):
             results["port"] = "fail"
-            if not compose_mode:
-                output = podman.logs(container_name)
-            else:
+            if compose_mode:
                 assert compose_file is not None
                 output = podman.compose_logs(str(compose_file))
+            else:
+                output = backend.logs(cname)
             for line in output.splitlines()[-10:]:
                 log.info(f"  {line}")
             return 1
@@ -579,11 +592,11 @@ def _test_variant(
         assert health is not None
         if not _test_health(ip, port, health, test.wait, https=https):
             results["health"] = "fail"
-            if not compose_mode:
-                output = podman.logs(container_name)
-            else:
+            if compose_mode:
                 assert compose_file is not None
                 output = podman.compose_logs(str(compose_file))
+            else:
+                output = backend.logs(cname)
             for line in output.splitlines()[-10:]:
                 log.info(f"  {line}")
             return 1
@@ -627,8 +640,7 @@ def _test_variant(
         if compose_mode and compose_file:
             podman.compose_down(str(compose_file))
         else:
-            podman.stop(container_name)
-            podman.rm(container_name)
+            backend.stop(cname)
 
         # Deregister from emergency cleanup
         if cleanup_entry in _cleanup_targets:
@@ -859,25 +871,60 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
 
     variant_filter: str | None = getattr(args, "variant", None)
     json_output: str | None = getattr(args, "json_output", None)
+    backend: str = getattr(args, "backend", "all")
+
+    # Determine which backends to run
+    if backend == "all":
+        backends = ["podman"]
+        if cfg.metadata.appjail is not None:
+            if AppJailBackend.available():
+                backends.append("appjail")
+            else:
+                log.warn("appjail configured but not installed — skipping appjail backend")
+    else:
+        backends = [backend]
+
     worst_rc = 0
-    tested = 0
+    # (backend, tag, mode, passed)
+    results_table: list[tuple[str, str, str, bool]] = []
 
-    for variant in cfg.variants:
-        if variant_filter and variant.tag != variant_filter:
-            continue
-        rc = _test_variant(cfg, variant, cfg.test, json_output=json_output)
-        if rc != 0 and worst_rc == 0:
-            worst_rc = rc
-        tested += 1
+    for force_backend in backends:
+        if len(backends) > 1:
+            log.step(f"Backend: {force_backend}")
+        for variant in cfg.variants:
+            if variant_filter and variant.tag != variant_filter:
+                continue
+            out: dict = {}
+            rc = _test_variant(
+                cfg, variant, cfg.test,
+                json_output=json_output,
+                force_backend=force_backend,
+                out=out,
+            )
+            if rc != 0 and worst_rc == 0:
+                worst_rc = rc
+            results_table.append((force_backend, variant.tag, out.get("mode", "?"), rc == 0))
 
+    tested = len(results_table)
     if tested == 0:
         log.warn("No variants matched the filter")
         return 0
 
     log.step("Test summary")
+    multi_backend = len(backends) > 1
+    tag_w = max(len(t) for _, t, _, _ in results_table) + 2  # +2 for colons
+    for bk, tag, _, passed in results_table:
+        tag_col = f":{tag}".ljust(tag_w)
+        status = "[ok]" if passed else "[FAIL]"
+        if multi_backend:
+            log.plain(f"  {bk:<8}  {tag_col}  {status}")
+        else:
+            log.plain(f"  {tag_col}  {status}")
+
+    passed_count = sum(1 for _, _, _, p in results_table if p)
     if worst_rc == 0:
-        log.success(f"All {tested} variant(s) passed")
+        log.success(f"{passed_count}/{tested} passed")
     else:
-        log.error(f"One or more variants failed (exit code {worst_rc})")
+        log.error(f"{passed_count}/{tested} passed")
 
     return worst_rc

@@ -1,0 +1,8 @@
+{%- set _reg = reg_var if reg_var is defined else registry -%}
+ARG tag={{ image_tag | default(default_tag) }}
+
+OPTION overwrite=force
+OPTION from={{ image_ref | default(_reg + "/" + name + ":${tag}") }}
+{%- for opt in jail_allow %}
+SET {{ opt }}=1
+{%- endfor %}

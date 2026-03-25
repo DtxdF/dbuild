@@ -15,6 +15,16 @@
     Macros — deployment snippets
     ================================================================== #}
 
+{%- macro vol_src(v) -%}
+{%- if v.root_var -%}
+{{ cfg_root }}/{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}
+{%- elif render_mode == "mkdocs" and v.placeholder -%}
+{{ v.placeholder }}
+{%- else -%}
+/path/to/{{ v.source }}
+{%- endif -%}
+{%- endmacro -%}
+
 {%- macro compose_snippet(override_port=None) -%}
 services:
   {{ name }}:
@@ -29,7 +39,7 @@ services:
 {%- if volumes %}
     volumes:
 {%- for v in volumes %}
-      - "{% if v.root_var %}{{ cfg_root }}/{% else %}/path/to/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
+      - "{{ vol_src(v) }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
 {%- endfor %}
 {%- endif %}
 {%- if ports %}
@@ -59,113 +69,19 @@ services:
 **.env**:
 
 ```
-DIRECTOR_PROJECT={{ name }}
-{%- for e in env %}
-{{ e.name }}={{ e.placeholder if (render_mode == "mkdocs" and e.placeholder) else e.default }}
-{%- endfor %}
+{% include 'appjail.env.j2' %}
 ```
 
 **appjail-director.yml**:
 
 ```yaml
-options:
-{%- if appjail and appjail.director and appjail.director.options %}
-{%- for opt in appjail.director.options %}
-  - {{ opt }}
-{%- endfor %}
-{%- else %}
-  - virtualnet: ':<random> default'
-  - nat:
-{%- endif %}
-services:
-  {{ name }}:
-    name: {{ name | replace("-", "_") }}
-    options:
-      - container: 'boot args:--pull'
-{%- if appjail and appjail.makejail and appjail.makejail.options %}
-{%- for opt in appjail.makejail.options %}
-{%- if opt is mapping %}
-{%- for k, v in opt.items() %}
-      - {{ k }}: "{{ v }}"
-{%- endfor %}
-{%- else %}
-      - {{ opt }}
-{%- endif %}
-{%- endfor %}
-{%- endif %}
-
-{%- if env %}
-    oci:
-      user: root
-      environment:
-{%- for e in env %}
-        - {{ e.name }}: !ENV '${{ '{' }}{{ e.name }}{{ '}' }}'
-{%- endfor %}
-{%- endif %}
-
-{%- if volumes %}
-    volumes:
-{%- for v in volumes %}
-      - {{ v.placeholder.replace("@", "") if (render_mode == "mkdocs" and v.placeholder) else v.source.replace("/", "_").replace(".", "_").strip("_") }}: {{ v.path }}
-{%- endfor %}
-{%- endif %}
-
-{%- if appjail and appjail.depends_on %}
-{%- for dep in appjail.depends_on %}
-  {{ dep.name }}:
-    name: {{ dep.name | replace("-", "_") }}
-    options:
-      - from: {{ dep.image }}
-{%- if dep.template %}
-      - template: !ENV '${PWD}/{{ dep.template }}'
-{%- endif %}
-{%- if dep.env %}
-    oci:
-      environment:
-{%- for k, v in dep.env.items() %}
-        - {{ k }}: "{{ v }}"
-{%- endfor %}
-{%- endif %}
-{%- if dep.volumes %}
-    volumes:
-{%- for k, v in dep.volumes.items() %}
-      - {{ k }}: {{ v }}
-{%- endfor %}
-{%- endif %}
-{%- endfor %}
-{%- endif %}
-
-{%- if volumes or (appjail and appjail.depends_on) %}
-volumes:
-{%- if volumes %}
-{%- for v in volumes %}
-  {{ v.placeholder.replace("@", "") if (render_mode == "mkdocs" and v.placeholder) else v.source.replace("/", "_").replace(".", "_").strip("_") }}:
-    device: '{% if v.root_var %}{{ cfg_root }}/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}'
-{%- endfor %}
-{%- endif %}
-{%- if appjail and appjail.depends_on %}
-{%- for dep in appjail.depends_on %}
-{%- if dep.volumes %}
-{%- for vol_id, vol_path in dep.volumes.items() %}
-  {{ vol_id }}:
-    device: "!ENV '${ {{ vol_id.upper() }} _LOCATION}'"
-{%- endfor %}
-{%- endif %}
-{%- endfor %}
-{%- endif %}
-{%- endif %}
+{% include 'appjail-director.yml.j2' %}
 ```
 
 **Makejail**:
 
 ```
-ARG tag={{ default_tag }}
-
-OPTION overwrite=force
-OPTION from={{ reg_var }}/{{ name }}:${tag}
-{%- for opt in jail_allow %}
-SET {{ opt }}=1
-{%- endfor %}
+{% include 'Makejail.j2' %}
 ```
 {%- endmacro %}
 
@@ -188,7 +104,7 @@ podman run -d --name {{ name }} \
   -e {{ e.name }}={{ e.placeholder if (render_mode == "mkdocs" and e.placeholder) else e.default }} \
 {%- endfor %}
 {%- for v in volumes %}
-  -v {% if v.root_var %}{{ cfg_root }}/{% else %}/path/to/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}:{{ v.path }}{{ " # optional" if v.optional else "" }} \
+  -v {{ vol_src(v) }}:{{ v.path }}{{ " # optional" if v.optional else "" }} \
 {%- endfor %}
   {{ reg_var }}/{{ name }}:latest
 {%- endmacro %}
@@ -219,7 +135,7 @@ podman run -d --name {{ name }} \
 {%- if volumes %}
     volumes:
 {%- for v in volumes %}
-      - "{% if v.root_var %}{{ cfg_root }}/{% else %}/path/to/{% endif %}{{ v.placeholder if (render_mode == "mkdocs" and v.placeholder) else v.source }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
+      - "{{ vol_src(v) }}:{{ v.path }}"{{ " # optional" if v.optional else "" }}
 {%- endfor %}
 {%- endif %}
 {%- if jail_allow %}
@@ -264,7 +180,7 @@ podman run -d --name {{ name }} \
 {% endif -%}
 {%- endblock -%}
 
-{%- block header %}
+{%- block header -%}
 <!--
 THIS FILE IS AUTOGENERATED - DO NOT EDIT MANUALLY
 Source: dbuild templates

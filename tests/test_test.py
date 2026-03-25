@@ -356,8 +356,9 @@ class TestEmergencyCleanup(unittest.TestCase):
     @patch("dbuild.test.podman.stop")
     @patch("dbuild.test.podman.rm")
     def test_emergency_cleanup_removes_containers(self, mock_rm, mock_stop):
+        from dbuild.container_backend import PodmanBackend
         cit._cleanup_targets.clear()
-        cit._cleanup_targets.append((None, "test-container"))
+        cit._cleanup_targets.append((None, PodmanBackend(), "test-container"))
         cit._emergency_cleanup()
         mock_stop.assert_called_once_with("test-container")
         mock_rm.assert_called_once_with("test-container")
@@ -366,7 +367,7 @@ class TestEmergencyCleanup(unittest.TestCase):
     @patch("dbuild.test.podman.compose_down")
     def test_emergency_cleanup_removes_compose(self, mock_down):
         cit._cleanup_targets.clear()
-        cit._cleanup_targets.append(("/path/to/compose.yaml", None))
+        cit._cleanup_targets.append(("/path/to/compose.yaml", None, None))
         cit._emergency_cleanup()
         mock_down.assert_called_once_with("/path/to/compose.yaml")
         self.assertEqual(len(cit._cleanup_targets), 0)
@@ -374,8 +375,9 @@ class TestEmergencyCleanup(unittest.TestCase):
     @patch("dbuild.test.podman.stop", side_effect=Exception("boom"))
     @patch("dbuild.test.podman.rm")
     def test_emergency_cleanup_swallows_errors(self, mock_rm, mock_stop):
+        from dbuild.container_backend import PodmanBackend
         cit._cleanup_targets.clear()
-        cit._cleanup_targets.append((None, "test-container"))
+        cit._cleanup_targets.append((None, PodmanBackend(), "test-container"))
         # Should not raise
         cit._emergency_cleanup()
         self.assertEqual(len(cit._cleanup_targets), 0)
