@@ -108,6 +108,12 @@ def _make_parser() -> argparse.ArgumentParser:
         dest="json_output",
         help="write test result JSON to FILE",
     )
+    test_parser.add_argument(
+        "--backend",
+        choices=["podman", "appjail", "all"],
+        default="all",
+        help="which backend(s) to test with: podman, appjail, or all (default: all)",
+    )
 
     # -- push --
     push_parser = sub.add_parser(

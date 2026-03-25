@@ -358,6 +358,65 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
     return context
 
 
+def generate_appjail_files(
+    cfg: Config,
+    dest_dir: Path,
+    *,
+    image_ref: str | None = None,
+) -> Path:
+    """Render appjail-director.yml, .env, and Makejail into *dest_dir*.
+
+    Per-file override: if ``.daemonless/appjail/<file>`` exists it is copied
+    as-is; otherwise the bundled template is rendered.
+
+    Parameters
+    ----------
+    cfg:
+        Parsed build configuration.
+    dest_dir:
+        Directory to write files into (created if absent).
+    image_ref:
+        When set (test mode), the Makejail ``OPTION from=`` line points to
+        this local image reference instead of the registry.
+    """
+    if jinja2 is None:
+        raise ImportError("jinja2 is required for appjail file generation")
+
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    override_dir = Path.cwd() / ".daemonless" / "appjail"
+    env = _get_jinja_env(Path.cwd())
+    if env is None:
+        raise RuntimeError("Could not find dbuild templates")
+
+    context = _enrich_metadata(cfg)
+    if image_ref:
+        context["image_ref"] = image_ref
+
+    files = {
+        "appjail-director.yml": "appjail-director.yml.j2",
+        ".env":                  "appjail.env.j2",
+        "Makejail":              "Makejail.j2",
+    }
+
+    for filename, template_name in files.items():
+        override = override_dir / filename
+        dest = dest_dir / filename
+        if override.is_file():
+            import shutil as _shutil
+            _shutil.copy2(override, dest)
+            log.info(f"AppJail: using override {override.relative_to(Path.cwd())}")
+        else:
+            try:
+                tmpl = env.get_template(template_name)
+                dest.write_text(tmpl.render(context))
+            except jinja2.TemplateNotFound:
+                log.warn(f"AppJail: template {template_name} not found, skipping")
+
+    return dest_dir
+
+
 def run(cfg: Config, args: argparse.Namespace) -> int:
     """Generate documentation and Containerfiles."""
     if jinja2 is None:

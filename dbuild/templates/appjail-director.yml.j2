@@ -1,0 +1,86 @@
+options:
+{%- if appjail and appjail.director and appjail.director.options %}
+{%- for opt in appjail.director.options %}
+  - {{ opt }}
+{%- endfor %}
+{%- else %}
+  - virtualnet: ':<random> default'
+  - nat:
+{%- endif %}
+services:
+  {{ name }}:
+    name: {{ name | replace("-", "_") }}
+    options:
+      - container: 'boot args:--pull'
+{%- if appjail and appjail.makejail and appjail.makejail.options %}
+{%- for opt in appjail.makejail.options %}
+{%- if opt is mapping %}
+{%- for k, v in opt.items() %}
+      - {{ k }}: "{{ v }}"
+{%- endfor %}
+{%- else %}
+      - {{ opt }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if env %}
+    oci:
+      user: root
+      environment:
+{%- for e in env %}
+        - {{ e.name }}: !ENV '${{ '{' }}{{ e.name }}{{ '}' }}'
+{%- endfor %}
+{%- endif %}
+
+{%- if volumes %}
+    volumes:
+{%- for v in volumes %}
+      - {{ v.placeholder.replace("@", "") if (render_mode is defined and render_mode == "mkdocs" and v.placeholder) else v.source.replace("/", "_").replace(".", "_").strip("_") }}: {{ v.path }}
+{%- endfor %}
+{%- endif %}
+
+{%- if appjail and appjail.depends_on %}
+{%- for dep in appjail.depends_on %}
+  {{ dep.name }}:
+    name: {{ dep.name | replace("-", "_") }}
+    options:
+      - from: {{ dep.image }}
+{%- if dep.template %}
+      - template: !ENV '${PWD}/{{ dep.template }}'
+{%- endif %}
+{%- if dep.env %}
+    oci:
+      environment:
+{%- for k, v in dep.env.items() %}
+        - {{ k }}: "{{ v }}"
+{%- endfor %}
+{%- endif %}
+{%- if dep.volumes %}
+    volumes:
+{%- for k, v in dep.volumes.items() %}
+      - {{ k }}: {{ v }}
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if volumes or (appjail and appjail.depends_on) %}
+volumes:
+{%- if volumes %}
+{%- for v in volumes %}
+  {{ v.placeholder.replace("@", "") if (render_mode is defined and render_mode == "mkdocs" and v.placeholder) else v.source.replace("/", "_").replace(".", "_").strip("_") }}:
+    device: '{% if v.root_var %}{{ cfg_root }}/{% endif %}{{ v.placeholder if (render_mode is defined and render_mode == "mkdocs" and v.placeholder) else v.source }}'
+{%- endfor %}
+{%- endif %}
+{%- if appjail and appjail.depends_on %}
+{%- for dep in appjail.depends_on %}
+{%- if dep.volumes %}
+{%- for vol_id, vol_path in dep.volumes.items() %}
+  {{ vol_id }}:
+    device: "!ENV '${ {{ vol_id.upper() }} _LOCATION}'"
+{%- endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endif %}

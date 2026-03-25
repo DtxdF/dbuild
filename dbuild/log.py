@@ -73,6 +73,12 @@ def debug(message: str) -> None:
         sys.stdout.flush()
 
 
+def plain(message: str) -> None:
+    """Print a message with no prefix."""
+    sys.stdout.write(f"{message}\n")
+    sys.stdout.flush()
+
+
 def info(message: str) -> None:
     """Print an informational message."""
     sys.stdout.write(f"{_c('blue')}[info]{_c('reset')} {message}\n")
