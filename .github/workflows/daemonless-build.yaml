@@ -121,6 +121,7 @@ jobs:
             pkg update -f
             pkg install -y podman ${{ env.COMPOSE_PACKAGES }} jq skopeo buildah trivy python3 py311-pyyaml appjail
             mkdir -p /var/log/appjail/jails /usr/local/appjail/jails
+            ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 
             # Install patched ocijail for .NET apps (mlock support)
             fetch -qo /tmp/ocijail.pkg "https://github.com/daemonless/freebsd-ports/releases/download/v0.4.0-patched/ocijail-0.4.0_3-${{ matrix.arch }}.pkg"
