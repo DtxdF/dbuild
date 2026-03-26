@@ -25,7 +25,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  DBUILD_REF: v1.7.0
+  DBUILD_REF: v1.8.0
   COMPOSE_PACKAGES: py311-podman-compose
 
 jobs:
@@ -119,7 +119,8 @@ jobs:
             mkdir -p /etc/pkg
             echo 'FreeBSD: { url: "http://pkg.FreeBSD.org/${ABI}/latest" }' > /etc/pkg/FreeBSD.conf
             pkg update -f
-            pkg install -y podman ${{ env.COMPOSE_PACKAGES }} jq skopeo buildah trivy python3 py311-pyyaml
+            pkg install -y podman ${{ env.COMPOSE_PACKAGES }} jq skopeo buildah trivy python3 py311-pyyaml appjail
+            mkdir -p /var/log/appjail/jails /usr/local/appjail/jails
 
             # Install patched ocijail for .NET apps (mlock support)
             fetch -qo /tmp/ocijail.pkg "https://github.com/daemonless/freebsd-ports/releases/download/v0.4.0-patched/ocijail-0.4.0_3-${{ matrix.arch }}.pkg"
@@ -321,7 +322,7 @@ jobs:
             mkdir -p /etc/pkg
             echo 'FreeBSD: { url: "http://pkg.FreeBSD.org/${ABI}/latest" }' > /etc/pkg/FreeBSD.conf
             pkg update -f
-            pkg install -y podman ${{ env.COMPOSE_PACKAGES }} jq python3 py311-pyyaml
+            pkg install -y podman ${{ env.COMPOSE_PACKAGES }} jq python3 py311-pyyaml appjail
 
             # Install patched ocijail for .NET apps (mlock support)
             fetch -qo /tmp/ocijail.pkg "https://github.com/daemonless/freebsd-ports/releases/download/v0.4.0-patched/ocijail-0.4.0_3-amd64.pkg"
