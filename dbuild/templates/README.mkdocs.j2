@@ -23,6 +23,10 @@
 !!! tip "Use [{{ deprecated.replacement }}]({{ deprecated.replacement }}.md) instead"
     Migrate to **[{{ deprecated.replacement }}]({{ deprecated.replacement }}.md)**, which replaces this image.
 
+{%- elif deprecated.successor %}
+!!! tip "Successor"
+    See **[{{ deprecated.successor }}]({{ deprecated.successor }})** for an alternative.
+
 {% endif -%}
 {% endif -%}
 {%- endblock %}

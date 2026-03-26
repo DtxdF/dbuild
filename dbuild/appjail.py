@@ -149,6 +149,7 @@ def oci_run(jail_name: str, image_ref: str, *, allow: list[str] | None = None) -
     try:
         cmd = ["appjail", "oci", "run", "-d",
                "-o", f"template={template_path}",
+               "-o", "tzdata=UTC",
                f"containers-storage:{image_ref}", jail_name]
         _run(cmd, capture=False)
     finally:
