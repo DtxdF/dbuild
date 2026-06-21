@@ -65,7 +65,7 @@ services:
     restart: unless-stopped
 {%- endmacro %}
 
-{%- macro appjail_snippet() -%}
+{%- macro appjail_director_snippet() -%}
 {%- if render_mode == "mkdocs" %}
 ``` { data-zip-bundle="{{ name }}-appjail" data-zip-filename=".env" }
 {% include 'appjail.env.j2' %}
@@ -125,6 +125,39 @@ podman run -d --name {{ name }} \
   -v {{ vol_src(v) }}:{{ v.path }}{{ " # optional" if v.optional else "" }} \
 {%- endfor %}
   {{ reg_var }}/{{ name }}:latest
+{%- endmacro %}
+
+{%- macro appjail_snippet(override_port=None) -%}
+{%- if image_class == "service" -%}
+appjail oci run -Pd \
+{%- else %}
+appjail oci run \
+  -o ephemeral \
+{%- endif %}
+  -o overwrite=force \
+  -o container="args:--pull" \
+{%- if appjail and appjail.cli and appjail.cli.options %}
+{%- for opt in appjail.cli.options %}
+  -o {{ opt }} \
+{%- endfor %}
+{%- else %}
+  -o virtualnet=":<random> default" \
+  -o nat \
+{%- endif %}
+{%- for p in ports %}
+{%- if loop.first %}
+  -o expose="{{ override_port if override_port else port_var }}:{{ p.target }} proto:{{ p.protocol }}" \
+{%- else %}
+  -o expose="{{ p.port }}:{{ p.target }} proto:{{ p.protocol }}" \
+{%- endif %}
+{%- endfor %}
+{%- for e in env %}
+  -e {{ e.name }}={{ e.placeholder if (render_mode == "mkdocs" and e.placeholder) else e.default }} \
+{%- endfor %}
+{%- for v in volumes %}
+  -o fstab="{{ vol_src(v) }} {{ v.path }} <pseudofs>" \{{ " # optional" if v.optional else "" }}
+{%- endfor %}
+  {{ reg_var }}/{{ name }}:latest {{ name }}
 {%- endmacro %}
 
 {%- macro ansible_snippet(override_port=None) -%}
@@ -294,7 +327,11 @@ Before deploying, ensure your host environment is ready. See the [Quick Start Gu
 
 ### AppJail Director
 
-{{ appjail_snippet() }}
+{{ appjail_director_snippet() }}
+
+{%- if ports %}
+**Note**: Exposing ports in AppJail means that your service can be reached from remote hosts. If that is not your intention, do not expose the ports and communicate with the service using the IPv4 address assigned by the virtual network.
+{%- endif %}
 {%- endif %}
 {%- endif %}
 
@@ -303,6 +340,18 @@ Before deploying, ensure your host environment is ready. See the [Quick Start Gu
 ```bash
 {{ cli_snippet() }}
 ```
+{%- if appjail_enabled %}
+
+### AppJail
+
+```bash
+{{ appjail_snippet() }}
+```
+
+{%- if ports %}
+**Note**: Exposing ports in AppJail means that your service can be reached from remote hosts. If that is not your intention, do not expose the ports and communicate with the service using the IPv4 address assigned by the virtual network.
+{%- endif %}
+{%- endif %}
 
 {%- if image_class == "service" %}
 
