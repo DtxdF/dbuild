@@ -12,6 +12,13 @@ services:
     name: {{ name | replace("-", "_") }}
     options:
       - container: 'boot args:--pull'
+{%- for p in ports %}
+{%- if loop.first %}
+      - expose="{{ override_port if override_port else port_var }}:{{ p.target }} proto:{{ p.protocol }}" \
+{%- else %}
+      - expose="{{ p.port }}:{{ p.target }} proto:{{ p.protocol }}" \
+{%- endif %}
+{%- endfor %}
 {%- if appjail and appjail.makejail and appjail.makejail.options %}
 {%- for opt in appjail.makejail.options %}
 {%- if opt is mapping %}
