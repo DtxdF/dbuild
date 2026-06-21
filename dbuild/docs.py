@@ -268,8 +268,18 @@ def _enrich_metadata(cfg: Config, community_override: str | None = None) -> dict
     if community_raw and ":" in community_raw:
         community_name, community_url = community_raw.split(":", 1)
 
+    # Extract base version from Containerfile.j2 if present
+    base_version = "15.1"  # fallback default
+    cf_path = Path.cwd() / "Containerfile.j2"
+    if cf_path.exists():
+        import re
+        match = re.search(r"ARG BASE_VERSION=(.*)", cf_path.read_text())
+        if match:
+            base_version = match.group(1).strip()
+
     context = {
         "name": cfg.image,
+        "base_version": base_version,
         "title": meta.title,
         "description": meta.description,
         "category": meta.category,

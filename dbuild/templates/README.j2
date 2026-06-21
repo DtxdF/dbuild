@@ -424,7 +424,7 @@ Access at: `http://localhost:{{ ports[0].port if render_mode != "mkdocs" else po
 
 **Architectures:** {{ architectures | default(['amd64']) | join(', ') }}
 **User:** `{{ user }}` (UID/GID via PUID/PGID, defaults to 1000:1000)
-**Base:** FreeBSD 15.0
+**Base:** FreeBSD {{ base_version }}
 {%- endblock %}
 {%- block community %}
 {%- if community_url %}
