@@ -65,7 +65,7 @@ services:
     restart: unless-stopped
 {%- endmacro %}
 
-{%- macro appjail_director_snippet() -%}
+{%- macro appjail_director_snippet(override_port=None) -%}
 {%- if render_mode == "mkdocs" %}
 ``` { data-zip-bundle="{{ name }}-appjail" data-zip-filename=".env" }
 {% include 'appjail.env.j2' %}
