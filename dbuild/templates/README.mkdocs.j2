@@ -90,7 +90,7 @@ Before deploying, ensure your host environment is ready. See the [Quick Start Gu
 {% if appjail_enabled %}
 === ":appjail-appjail: AppJail Director"
 
-    {{ appjail_snippet() | indent(4) }}
+    {{ appjail_director_snippet(port_var) | indent(4) }}
 
 {% endif %}
 {%- endif %}
@@ -100,6 +100,14 @@ Before deploying, ensure your host environment is ready. See the [Quick Start Gu
     {{ cli_snippet(port_var) | indent(4) }}
     ```
 
+{% if appjail_enabled %}
+=== ":appjail-appjail: AppJail"
+
+    ```bash { data-zip-bundle="{{ name }}-appjail-cli" data-zip-filename="run.sh" }
+    {{ appjail_snippet(port_var) | indent(4) }}
+    ```
+
+{% endif %}
 {%- if image_class == "service" %}
 
 === ":simple-ansible: Ansible"
