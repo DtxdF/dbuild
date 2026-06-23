@@ -7,6 +7,7 @@ from embedded templates with dynamic placeholder replacement.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -149,7 +150,7 @@ def _first_paragraph(text: str) -> str:
 
 
 def _fetch_port_metadata(port_path: str) -> dict[str, str] | None:
-    """Fetch metadata from a FreeBSD port in /usr/ports."""
+    """Fetch metadata from a FreeBSD port."""
     if "/" not in port_path or port_path.count("/") != 1:
         log.error(
             f"invalid port path '{port_path}' — "
@@ -157,14 +158,16 @@ def _fetch_port_metadata(port_path: str) -> dict[str, str] | None:
         )
         return None
 
-    if not Path("/usr/ports").exists():
-        log.error("/usr/ports not found")
+    portsdir = os.getenv("PORTSDIR", "/usr/ports")
+
+    if not Path(portsdir).exists():
+        log.error(f"{portsdir} not found")
         log.error("check out the ports tree first:")
-        log.error("  git clone --depth=1 https://git.FreeBSD.org/ports.git /usr/ports")
+        log.error(f"  git clone --depth=1 https://git.FreeBSD.org/ports.git {portsdir}")
         log.error("  or: portsnap fetch extract")
         return None
 
-    full_path = Path("/usr/ports") / port_path
+    full_path = Path(portsdir) / port_path
     if not full_path.exists():
         log.error(f"port not found: {full_path}")
         return None
