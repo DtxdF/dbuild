@@ -174,6 +174,10 @@ class Variant:
     tag_desc: str | None = field(default=None, metadata={
         "desc": "Override the auto-generated tag description in the README version table",
     })
+    puid: bool | None = field(default=None, metadata={
+        "desc": "Override the per-image `cit: puid:` re-chown check for this variant "
+                "(e.g. `false` for a root image with no PUID/PGID remapping)",
+    })
 
 
 @dataclass
@@ -421,6 +425,7 @@ def _global_extra_variants(base: Path, global_data: dict[str, Any]) -> list[Vari
                 aliases=v.get("aliases", []),
                 default=v.get("default", False),
                 pkg_name=v.get("pkg_name"),
+                puid=v.get("puid"),
             )
         )
 
@@ -687,6 +692,7 @@ def _parse_variants(data: dict[str, Any]) -> list[Variant]:
                 default=v.get("default", False),
                 pkg_name=v.get("pkg_name"),
                 tag_desc=v.get("tag_desc"),
+                puid=v.get("puid"),
             )
         )
     return variants

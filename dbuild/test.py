@@ -1204,8 +1204,6 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
     # `--puid=true/false` overrides the per-image `cit: puid:` config.
     puid_override = getattr(args, "puid", None)
     puid_enabled = cfg.test.puid if puid_override is None else puid_override
-    if not puid_enabled:
-        log.info("Ownership (PUID/PGID) check disabled (--puid=false or cit: puid: false)")
 
     worst_rc = 0
     # (backend, tag, mode, passed)
@@ -1230,12 +1228,22 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
                     backend=force_backend if len(backends) > 1 else None,
                     tag=variant.tag if len(matching) > 1 else None,
                 )
+            # CLI --puid wins; otherwise a variant may opt out of the re-chown
+            # check (e.g. a root image with no PUID/PGID remapping).
+            variant_puid = puid_enabled
+            if puid_override is None and variant.puid is not None:
+                variant_puid = variant.puid
+            if not variant_puid:
+                log.info(
+                    f"Ownership (PUID/PGID) check disabled for :{variant.tag} "
+                    "(--puid=false or puid: false)"
+                )
             out: dict = {}
             rc = _test_variant(
                 cfg, variant, cfg.test,
                 json_output=out_path,
                 force_backend=force_backend,
-                puid_enabled=puid_enabled,
+                puid_enabled=variant_puid,
                 out=out,
             )
             if rc != 0 and worst_rc == 0:
